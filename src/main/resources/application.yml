@@ -1,0 +1,61 @@
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: always
+    include-binding-errors: always
+
+spring:
+  application:
+    name: open-bounty
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/openbounty_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    # Production-tuned HikariCP Connection Pool
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000 # 5 minutes
+      max-lifetime: 1800000 # 30 minutes
+      connection-timeout: 30000 # 30 seconds
+      leak-detection-threshold: 60000 # 60 seconds
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false # Set true in dev, false in prod for performance
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+# Spring Boot Actuator (Health & Metrics Monitoring)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
+
+# Swagger / OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+
+# Structured Logging Configuration
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  level:
+    root: INFO
+    com.openbounty: DEBUG
