@@ -2,8 +2,9 @@
 target/
 *.class
 
-# Log file
+# Log files
 *.log
+logs/
 
 # Package Files #
 *.jar
@@ -18,35 +19,35 @@ target/
 hs_err_pid*
 replay_pid*
 
-# Maven
-.mvn/
-mvnw
-mvnw.cmd
-
-# Environment variables & secrets
+# Environment Variables & Secrets
 .env
 .env.local
-*.env
+.env.*.local
+*.pem
+*.key
 
-# IDE - IntelliJ IDEA
+# IDE & Editor Specific Files
 .idea/
-*.iws
 *.iml
+*.iws
 *.ipr
-out/
-
-# IDE - Eclipse
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-
-# IDE - VS Code
 .vscode/
+.classpath
+.project
+.settings/
+*.sublime-workspace
+*.sublime-project
 
-# OS Specific
+# Operating System Files
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# Temporary and Scratch Files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Internal docs / guides
+DEVELOPMENT_TO_LAUNCH_GUIDE.md

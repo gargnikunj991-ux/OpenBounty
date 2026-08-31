@@ -3,9 +3,29 @@
 [![CI Pipeline](https://github.com/gargnikunj991-ux/OpenBounty/actions/workflows/ci.yml/badge.svg)](https://github.com/gargnikunj991-ux/OpenBounty/actions/workflows/ci.yml)
 ![Java](https://img.shields.io/badge/Java-21-orange.svg)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.3-brightgreen.svg)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 
-**OpenBounty** is an open-source platform connecting **Clients/Organizations** who have technical and real-world challenges with **Developers/Solvers** who propose, build, and deliver milestone-verified solutions.
+**OpenBounty** is an enterprise-ready, open-source platform connecting **Clients/Organizations** who have technical challenges with **Developers/Solvers** who propose, build, and deliver milestone-verified solutions.
+
+---
+
+## 📚 Complete Technical Documentation Suite
+
+For deep architectural insights, database designs, API specifications, and operational guides:
+
+| Document | Description |
+| :--- | :--- |
+| [🚀 Zero-to-Launch Guide (`DEVELOPMENT_TO_LAUNCH_GUIDE.md`)](DEVELOPMENT_TO_LAUNCH_GUIDE.md) | Master end-to-end playbook from initial setup to production deployment and user acquisition. |
+| [📖 System Design (`SYSTEM_DESIGN.md`)](SYSTEM_DESIGN.md) | High-level system architecture, ER diagrams, and state machine lifecycle. |
+| [🗺 Development Roadmap (`ROADMAP.md`)](ROADMAP.md) | 10-phase engineering roadmap from scratch to production deployment. |
+| [🔌 API Specification (`API_SPECIFICATION.md`)](API_SPECIFICATION.md) | Exhaustive REST contracts, JSON schemas, headers, query params & RFC 7807 error models. |
+| [🗄 Database Schema (`DATABASE_SCHEMA.md`)](DATABASE_SCHEMA.md) | PostgreSQL relational schema, DDL, constraints, indexing strategies, and data dictionary. |
+| [🔐 Security Architecture (`SECURITY_MODEL.md`)](SECURITY_MODEL.md) | Stateless JWT authentication, RBAC permission matrix, password hashing & OWASP mitigations. |
+| [🏛 Architecture Decisions (`ARCHITECTURE_DECISIONS.md`)](ARCHITECTURE_DECISIONS.md) | Architecture Decision Records (ADRs) capturing key engineering trade-offs. |
+| [🐳 Deployment & Operations (`DEPLOYMENT.md`)](DEPLOYMENT.md) | Multi-stage Docker containerization, `docker-compose.yml`, JVM tuning, and monitoring. |
+| [🤝 Contributing Guide (`CONTRIBUTING.md`)](CONTRIBUTING.md) | Contribution standards, Git workflow, branch naming, and PR checklist. |
+| [🤖 Agent & AI Guidelines (`AGENT.md`)](AGENT.md) | Senior engineering co-pilot and pair-programming architecture principles. |
 
 ---
 
@@ -29,36 +49,33 @@
   - Spring Security (Stateless JWT Auth)
   - Spring Boot Actuator (Health & Metrics)
   - Spring Boot Validation (Jakarta Validation)
-- **Database:** PostgreSQL (Production) / H2 (Dev/Testing)
+- **Database:** PostgreSQL 16 (Production) / H2 (Dev/Testing)
 - **Documentation:** SpringDoc OpenAPI 2.6.0 (Swagger UI)
-- **Utilities:** Lombok, Dotenv Java (environment config)
+- **Utilities:** Lombok, Dotenv Java
+- **Containerization:** Docker & Docker Compose
 - **Build Tool:** Maven 3.9+
 
 ---
 
-## 🏗 Architecture & Design
-
-For deep architectural decisions, ER diagrams, and state transitions, see:
-- [📖 System Design Document](SYSTEM_DESIGN.md)
-- [🗺 Product Roadmap](ROADMAP.md)
+## 🏗 High-Level Architecture
 
 ```text
-[ Client (Web/Mobile/Postman) ]
-              │ HTTP Requests
-              ▼
+[ Client (Web / Mobile / CLI) ]
+               │ HTTP Requests
+               ▼
 [ JwtAuthenticationFilter & SecurityFilterChain ]
-              │ Authenticated & Authorized Requests
-              ▼
-[ Controller Layer (@RestController) ]
-              │
-              ▼
-[ Service Layer (@Service) ]
-              │
-              ▼
-[ Repository Layer (@Repository) ]
-              │
-              ▼
-[ PostgreSQL Database ]
+               │ Authenticated & Authorized Requests
+               ▼
+[ Controller Layer (@RestController) ] ── (Jakarta @Valid DTOs, RFC 7807 problem details)
+               │
+               ▼
+[ Service Layer (@Service) ] ─────────── (Business domain logic, state transitions, @Transactional)
+               │
+               ▼
+[ Repository Layer (@Repository) ] ───── (Spring Data JPA, JPQL, indexing, pagination)
+               │
+               ▼
+[ PostgreSQL Database ] ──────────────── (Relational tables, foreign keys, check constraints)
 ```
 
 ---
@@ -68,7 +85,7 @@ For deep architectural decisions, ER diagrams, and state transitions, see:
 ### 1. Prerequisites
 - **JDK 21** installed and configured in your `PATH`
 - **Maven 3.9+**
-- **PostgreSQL 15+** running locally or via Docker
+- **Docker & Docker Compose** (for PostgreSQL database)
 
 ### 2. Clone the Repository
 ```bash
@@ -76,32 +93,15 @@ git clone https://github.com/gargnikunj991-ux/OpenBounty.git
 cd OpenBounty
 ```
 
-### 3. Configure Environment Variables
-Copy `.env.example` to create your local `.env` file:
+### 3. Start Database & Run Backend
 ```bash
-# Windows PowerShell
-Copy-Item .env.example .env
+# 1. Start PostgreSQL container
+docker compose up -d postgres
 
-# Linux / macOS
+# 2. Copy environment variables template
 cp .env.example .env
-```
 
-Update your `.env` with your PostgreSQL database credentials and a 256-bit JWT secret:
-```properties
-SERVER_PORT=8080
-DB_URL=jdbc:postgresql://localhost:5432/openbounty_db
-DB_USERNAME=postgres
-DB_PASSWORD=postgres
-JWT_SECRET=404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
-JWT_EXPIRATION_MS=86400000
-```
-
-### 4. Build & Run
-```bash
-# Build with Maven
-mvn clean compile
-
-# Run the Spring Boot application
+# 3. Build & Run Spring Boot application
 mvn spring-boot:run
 ```
 
@@ -109,9 +109,9 @@ The application will start on `http://localhost:8080`.
 
 ---
 
-## 📚 API Documentation
+## 📚 Interactive API Documentation
 
-Once the application is running, explore and test the interactive API documentation:
+Once the application is running:
 - **Swagger UI:** [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
 - **OpenAPI JSON Spec:** [http://localhost:8080/api-docs](http://localhost:8080/api-docs)
 - **Actuator Health Endpoint:** [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)
@@ -120,9 +120,9 @@ Once the application is running, explore and test the interactive API documentat
 
 ## 🧪 Testing
 
-Run all unit and integration tests:
+Run all unit and integration test suites:
 ```bash
-mvn test
+mvn clean test
 ```
 
 ---
