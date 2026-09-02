@@ -10,6 +10,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -27,7 +28,17 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "bounties")
+@Table(
+    name = "bounties",
+    indexes = {
+        @Index(name = "idx_bounties_status", columnList = "status"),
+        @Index(name = "idx_bounties_category", columnList = "category"),
+        @Index(name = "idx_bounties_client_id", columnList = "client_id"),
+        @Index(name = "idx_bounties_assigned_dev_id", columnList = "assigned_dev_id"),
+        @Index(name = "idx_bounties_created_at", columnList = "created_at"),
+        @Index(name = "idx_bounties_status_category", columnList = "status, category")
+    }
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -76,4 +87,17 @@ public class Bounty {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Bounty bounty = (Bounty) o;
+        return id != null && id.equals(bounty.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
 }
