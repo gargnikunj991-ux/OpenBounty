@@ -1,0 +1,1 @@
+﻿OpenBounty Frontend static assets directory

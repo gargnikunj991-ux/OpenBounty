@@ -1,0 +1,23 @@
+﻿{
+  "name": "openbounty-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenBounty Client & Developer Solver Portal UI",
+  "type": "module",
+  "scripts": {
+    "dev": "echo \"Frontend placeholder: initialize with Next.js or Vite+React. See README.md\"",
+    "build": "echo \"Frontend build placeholder\"",
+    "start": "echo \"Frontend start placeholder\"",
+    "lint": "echo \"Frontend lint placeholder\""
+  },
+  "keywords": [
+    "openbounty",
+    "bounties",
+    "web3",
+    "marketplace",
+    "react",
+    "nextjs"
+  ],
+  "author": "OpenBounty Team",
+  "license": "Apache-2.0"
+}
