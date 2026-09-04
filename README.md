@@ -80,12 +80,42 @@ For deep architectural insights, database designs, API specifications, and opera
 
 ---
 
+## 🌿 Repository Branch Strategy & Structure
+
+OpenBounty utilizes a clean separation of concerns across branches, unified in `main`:
+
+| Branch | Description | Contents |
+| :--- | :--- | :--- |
+| **`backend`** | Core Spring Boot REST API service | Tracks `backend/` directory only |
+| **`frontend`** | Web client interface portal | Tracks `frontend/` directory only |
+| **`main`** | Unified deployment & integration testing | Houses both `backend/` & `frontend/` with Docker Compose |
+
+```text
+OpenBounty/
+├── .github/workflows/ci.yml   # CI/CD pipeline
+├── backend/                   # Spring Boot 3.3 + Java 21 REST API
+│   ├── src/
+│   ├── Dockerfile
+│   ├── pom.xml
+│   └── README.md
+├── frontend/                  # Modern Web Client Portal
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── README.md
+├── docker-compose.yml         # Full-stack container orchestration
+├── .gitignore                 # Root and module git ignore rules
+└── README.md
+```
+
+---
+
 ## ⚡ Quick Start
 
 ### 1. Prerequisites
 - **JDK 21** installed and configured in your `PATH`
 - **Maven 3.9+**
-- **Docker & Docker Compose** (for PostgreSQL database)
+- **Docker & Docker Compose**
 
 ### 2. Clone the Repository
 ```bash
@@ -93,19 +123,20 @@ git clone https://github.com/gargnikunj991-ux/OpenBounty.git
 cd OpenBounty
 ```
 
-### 3. Start Database & Run Backend
+### 3. Local Backend Setup
 ```bash
 # 1. Start PostgreSQL container
 docker compose up -d postgres
 
-# 2. Copy environment variables template
+# 2. Configure backend environment
+cd backend
 cp .env.example .env
 
 # 3. Build & Run Spring Boot application
 mvn spring-boot:run
 ```
 
-The application will start on `http://localhost:8080`.
+The API will start on `http://localhost:8080`.
 
 ---
 

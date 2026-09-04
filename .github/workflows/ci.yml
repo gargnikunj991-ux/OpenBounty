@@ -2,7 +2,7 @@ name: OpenBounty CI Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, backend ]
   pull_request:
     branches: [ main ]
 
@@ -23,6 +23,7 @@ jobs:
           cache: maven
 
       - name: Compile and Run Tests with Maven
+        working-directory: backend
         run: mvn clean verify --batch-mode
 
       - name: Publish Test Results
@@ -30,4 +31,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: surefire-test-reports
-          path: target/surefire-reports/
+          path: backend/target/surefire-reports/
