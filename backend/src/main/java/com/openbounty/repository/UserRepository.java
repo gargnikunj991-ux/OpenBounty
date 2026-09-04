@@ -1,5 +1,6 @@
 package com.openbounty.repository;
 
+import com.openbounty.enums.Role;
 import com.openbounty.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -20,4 +21,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * Generates 'SELECT 1 FROM users WHERE email = ? LIMIT 1' without allocating entity objects in RAM.
      */
     boolean existsByEmail(String email);
+
+    /**
+     * Count users by their role for platform statistics and analytics overview.
+     * Backed by index 'idx_users_role'.
+     */
+    long countByRole(Role role);
 }
+
