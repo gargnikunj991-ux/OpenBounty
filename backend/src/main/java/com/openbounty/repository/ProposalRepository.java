@@ -71,7 +71,7 @@ public interface ProposalRepository extends JpaRepository<Proposal, Long> {
      * Executes in a single SQL statement:
      * UPDATE proposals SET status = 'REJECTED' WHERE bounty_id = ? AND id <> ?
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE Proposal p SET p.status = :rejectedStatus WHERE p.bounty.id = :bountyId AND p.id <> :acceptedProposalId")
     int rejectCompetingProposals(
             @Param("bountyId") Long bountyId,
