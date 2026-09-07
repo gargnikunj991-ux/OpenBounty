@@ -22,4 +22,12 @@ public class RefreshTokenRequest {
     @NotBlank(message = "Refresh token is required")
     @Schema(description = "The opaque refresh token received during authentication", example = "550e8400-e29b-41d4-a716-446655440000")
     private String refreshToken;
+
+    @Schema(description = "Whether to revoke all active sessions across all devices on logout", example = "false")
+    private boolean allDevices;
+
+    public RefreshTokenRequest(String refreshToken) {
+        this.refreshToken = refreshToken;
+        this.allDevices = false;
+    }
 }

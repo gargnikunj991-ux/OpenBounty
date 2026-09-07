@@ -109,7 +109,7 @@ public class SecurityConfig {
                         // Public authentication endpoints
                         .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout").permitAll()
                         // Public browse bounties & analytics
-                        .requestMatchers(HttpMethod.GET, "/api/bounties", "/api/bounties/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/bounties", "/api/bounties/{id:[0-9]+}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/analytics/**").permitAll()
                         // Swagger & OpenAPI documentation
                         .requestMatchers(

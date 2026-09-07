@@ -31,7 +31,8 @@ import java.time.LocalDateTime;
     name = "refresh_tokens",
     indexes = {
         @Index(name = "idx_refresh_tokens_token", columnList = "token", unique = true),
-        @Index(name = "idx_refresh_tokens_user", columnList = "user_id")
+        @Index(name = "idx_refresh_tokens_user", columnList = "user_id"),
+        @Index(name = "idx_refresh_tokens_expiry", columnList = "expiry_date")
     }
 )
 @Getter

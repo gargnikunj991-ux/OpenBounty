@@ -121,13 +121,16 @@ public class AuthService {
 
     /**
      * Logout user by revoking the active refresh token and/or terminating user sessions.
+     * If allDevices is requested or no specific token is provided, revokes all sessions for the user.
+     * Otherwise, only the specific refresh token is revoked, preserving other device sessions.
      */
     @Transactional
     public void logout(RefreshTokenRequest request, UserPrincipal currentUser) {
-        if (request != null && request.getRefreshToken() != null && !request.getRefreshToken().isBlank()) {
+        if (request != null && request.isAllDevices() && currentUser != null) {
+            userRepository.findById(currentUser.getId()).ifPresent(refreshTokenService::revokeAllForUser);
+        } else if (request != null && request.getRefreshToken() != null && !request.getRefreshToken().isBlank()) {
             refreshTokenService.revokeToken(request.getRefreshToken());
-        }
-        if (currentUser != null) {
+        } else if (currentUser != null) {
             userRepository.findById(currentUser.getId()).ifPresent(refreshTokenService::revokeAllForUser);
         }
     }

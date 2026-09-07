@@ -25,7 +25,7 @@ public class RefreshTokenService {
 
     public RefreshTokenService(
             RefreshTokenRepository refreshTokenRepository,
-            @Value("${jwt.refresh-expiration-ms:604800000}") long refreshExpirationMs) {
+            @Value("${jwt.refresh-expiration-ms:86400000}") long refreshExpirationMs) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.refreshExpirationMs = refreshExpirationMs;
     }
@@ -107,5 +107,18 @@ public class RefreshTokenService {
     public void revokeAllForUser(User user) {
         int count = refreshTokenRepository.deleteByUser(user);
         log.info("Terminated {} active refresh token sessions for user '{}'", count, user.getEmail());
+    }
+
+    /**
+     * Periodically purge expired refresh tokens from the database.
+     * Runs daily at 03:00 AM UTC to keep table size lean and indexes performant.
+     */
+    @org.springframework.scheduling.annotation.Scheduled(cron = "0 0 3 * * ?")
+    @Transactional
+    public int purgeExpiredTokens() {
+        Instant now = Instant.now();
+        int deletedCount = refreshTokenRepository.deleteAllExpiredSince(now);
+        log.info("Purged {} expired refresh tokens", deletedCount);
+        return deletedCount;
     }
 }

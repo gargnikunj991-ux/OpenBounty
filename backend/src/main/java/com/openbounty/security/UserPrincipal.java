@@ -49,6 +49,21 @@ public class UserPrincipal implements UserDetails {
         );
     }
 
+    public static UserPrincipal fromClaims(Long id, String name, String email, Role role) {
+        List<GrantedAuthority> authorities = Collections.singletonList(
+                new SimpleGrantedAuthority(role.name())
+        );
+
+        return new UserPrincipal(
+                id,
+                name,
+                email,
+                "",
+                role,
+                authorities
+        );
+    }
+
     public Long getId() {
         return id;
     }

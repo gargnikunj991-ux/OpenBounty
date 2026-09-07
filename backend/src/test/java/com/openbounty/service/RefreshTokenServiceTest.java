@@ -35,7 +35,7 @@ class RefreshTokenServiceTest {
 
     @BeforeEach
     void setUp() {
-        refreshTokenService = new RefreshTokenService(refreshTokenRepository, 604800000L);
+        refreshTokenService = new RefreshTokenService(refreshTokenRepository, 86400000L);
 
         sampleUser = User.builder()
                 .id(1L)
@@ -143,5 +143,16 @@ class RefreshTokenServiceTest {
         refreshTokenService.revokeAllForUser(sampleUser);
 
         verify(refreshTokenRepository).deleteByUser(sampleUser);
+    }
+
+    @Test
+    @DisplayName("purgeExpiredTokens deletes expired tokens from repository")
+    void testPurgeExpiredTokens() {
+        when(refreshTokenRepository.deleteAllExpiredSince(any(Instant.class))).thenReturn(5);
+
+        int count = refreshTokenService.purgeExpiredTokens();
+
+        assertThat(count).isEqualTo(5);
+        verify(refreshTokenRepository).deleteAllExpiredSince(any(Instant.class));
     }
 }

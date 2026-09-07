@@ -35,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -191,14 +192,37 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("logout revokes provided refresh token and user sessions")
-    void testLogout_Success() {
+    @DisplayName("logout revokes provided refresh token (single-device logout)")
+    void testLogout_SingleDevice_Success() {
         RefreshTokenRequest request = new RefreshTokenRequest("active.refresh.token");
-        when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
 
         authService.logout(request, samplePrincipal);
 
         verify(refreshTokenService).revokeToken("active.refresh.token");
+        verify(refreshTokenService, never()).revokeAllForUser(any());
+    }
+
+    @Test
+    @DisplayName("logout with allDevices flag revokes all user sessions")
+    void testLogout_AllDevices_Success() {
+        RefreshTokenRequest request = RefreshTokenRequest.builder()
+                .refreshToken("active.refresh.token")
+                .allDevices(true)
+                .build();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
+
+        authService.logout(request, samplePrincipal);
+
+        verify(refreshTokenService).revokeAllForUser(sampleUser);
+    }
+
+    @Test
+    @DisplayName("logout without refresh token revokes all user sessions when authenticated")
+    void testLogout_WithoutToken_RevokesAll() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
+
+        authService.logout(null, samplePrincipal);
+
         verify(refreshTokenService).revokeAllForUser(sampleUser);
     }
 

@@ -1,5 +1,6 @@
 package com.openbounty.security;
 
+import com.openbounty.enums.Role;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,6 +21,7 @@ import java.io.IOException;
 
 /**
  * Filter executed once per request to validate the JWT Bearer token and populate the SecurityContext.
+ * Extracts user claims directly from validated JWT to maintain true stateless authentication without DB queries.
  */
 @Component
 @RequiredArgsConstructor
@@ -46,12 +48,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String jwt = authHeader.substring(7);
 
         try {
-            final String userEmail = jwtService.extractUsername(jwt);
+            if (jwtService.validateToken(jwt)) {
+                final String userEmail = jwtService.extractUsername(jwt);
 
-            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+                if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    Long userId = jwtService.extractUserId(jwt);
+                    String roleStr = jwtService.extractRole(jwt);
 
-                if (jwtService.isTokenValid(jwt, userDetails)) {
+                    UserDetails userDetails;
+                    if (userId != null && roleStr != null) {
+                        String name = jwtService.extractClaim(jwt, claims -> claims.get("name", String.class));
+                        Role role = Role.valueOf(roleStr);
+                        userDetails = UserPrincipal.fromClaims(userId, name != null ? name : "", userEmail, role);
+                    } else {
+                        // Fallback to database lookup if claims are incomplete
+                        userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+                    }
+
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,
