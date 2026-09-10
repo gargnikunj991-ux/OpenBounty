@@ -67,7 +67,8 @@ This document provides the exhaustive API reference and contract for the **OpenB
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "type": "Bearer",
-  "expiresInMs": 86400000,
+  "expiresInMs": 600000,
+  "refreshToken": "550e8400-e29b-41d4-a716-446655440000",
   "user": {
     "id": 1,
     "name": "Alex Johnson",
@@ -80,7 +81,52 @@ This document provides the exhaustive API reference and contract for the **OpenB
 
 ---
 
-### 1.3 Get Current Authenticated Profile
+### 1.3 Refresh Access Token
+* **Endpoint:** `POST /api/auth/refresh`
+* **Access:** Public
+* **Description:** Exchanges a valid refresh token for a newly issued access token and rotated refresh token (implements Refresh Token Rotation with reuse detection).
+
+#### Request Body
+```json
+{
+  "refreshToken": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+#### Response `200 OK`
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "729b5321-f11c-4b8a-bc32-119933221100",
+  "tokenType": "Bearer",
+  "expiresInMs": 600000
+}
+```
+
+---
+
+### 1.4 User Logout
+* **Endpoint:** `POST /api/auth/logout`
+* **Access:** Public / Authenticated
+* **Description:** Revokes the specified refresh token in the database, terminating active sessions without requiring Redis.
+
+#### Request Body (Optional)
+```json
+{
+  "refreshToken": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+#### Response `200 OK`
+```json
+{
+  "message": "Successfully logged out. Refresh token revoked."
+}
+```
+
+---
+
+### 1.5 Get Current Authenticated Profile
 * **Endpoint:** `GET /api/auth/me`
 * **Access:** Authenticated (`ROLE_CLIENT`, `ROLE_DEVELOPER`, `ROLE_ADMIN`)
 * **Headers:** `Authorization: Bearer <jwt_token>`

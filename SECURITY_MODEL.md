@@ -42,7 +42,7 @@ sequenceDiagram
 ## 2. JWT Token Structure & Claims Specification
 
 * **Algorithm:** HMAC using SHA-256 (`HS256`) with a minimum 256-bit secret key.
-* **Token Lifetime:** 24 hours (86,400,000 ms).
+* **Token Lifetime:** 10 minutes (600,000 ms).
 
 ### Claims Payload
 ```json
@@ -65,6 +65,8 @@ sequenceDiagram
 | :--- | :--- | :---: | :---: | :---: | :---: |
 | Register Account | `POST /api/auth/register` | ✅ | ✅ | ✅ | ✅ |
 | Authenticate (Login) | `POST /api/auth/login` | ✅ | ✅ | ✅ | ✅ |
+| Refresh Access Token | `POST /api/auth/refresh` | ✅ | ✅ | ✅ | ✅ |
+| Logout / Revoke Token | `POST /api/auth/logout` | ✅ | ✅ | ✅ | ✅ |
 | Get Own Profile | `GET /api/auth/me` | ❌ | ✅ | ✅ | ✅ |
 | Browse / Filter Bounties | `GET /api/bounties` | ✅ | ✅ | ✅ | ✅ |
 | View Single Bounty | `GET /api/bounties/{id}` | ✅ | ✅ | ✅ | ✅ |

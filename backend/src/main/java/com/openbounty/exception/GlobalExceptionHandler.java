@@ -120,6 +120,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.UNAUTHORIZED, "unauthorized", "Unauthorized", ex.getMessage(), request);
     }
 
+    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleAuthenticationException(org.springframework.security.core.AuthenticationException ex, HttpServletRequest request) {
+        log.warn("Authentication failed for URI {}: {}", request.getRequestURI(), ex.getMessage());
+        return buildResponse(HttpStatus.UNAUTHORIZED, "unauthorized", "Unauthorized", ex.getMessage(), request);
+    }
+
     // =========================================================================
     // 403 FORBIDDEN Handlers
     // =========================================================================
@@ -128,6 +134,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
         log.warn("Access denied for URI {}: {}", request.getRequestURI(), ex.getMessage());
         return buildResponse(HttpStatus.FORBIDDEN, "access-denied", "Access Denied", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleSpringSecurityAccessDenied(org.springframework.security.access.AccessDeniedException ex, HttpServletRequest request) {
+        log.warn("Security access denied for URI {}: {}", request.getRequestURI(), ex.getMessage());
+        return buildResponse(HttpStatus.FORBIDDEN, "access-denied", "Access Denied", "You do not have permission to access this resource", request);
     }
 
     @ExceptionHandler(AccountSuspendedException.class)

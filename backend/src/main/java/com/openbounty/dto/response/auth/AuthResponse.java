@@ -25,8 +25,11 @@ public class AuthResponse {
     @Schema(description = "Authentication token type", example = "Bearer")
     private String type = "Bearer";
 
-    @Schema(description = "Token validity lifetime in milliseconds", example = "86400000")
+    @Schema(description = "Token validity lifetime in milliseconds", example = "600000")
     private long expiresInMs;
+
+    @Schema(description = "Refresh token used to obtain a new access token when expired", example = "550e8400-e29b-41d4-a716-446655440000")
+    private String refreshToken;
 
     @Schema(description = "Basic profile summary of the authenticated user")
     private UserSummaryResponse user;
