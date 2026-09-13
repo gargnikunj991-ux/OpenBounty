@@ -4,7 +4,7 @@
 
 ## 1. Executive Summary & Problem Statement
 
-**OpenBounty** is an open-source decentralized challenge and bounty collaboration platform designed to connect **Clients/Organizations** who have technical and real-world challenges with **Developers/Solvers** who propose and build verified solutions.
+**OpenBounty** is an  decentralized challenge and bounty collaboration platform designed to connect **Clients/Organizations** who have technical and real-world challenges with **Developers/Solvers** who propose and build verified solutions.
 
 This document outlines the end-to-end architecture, database schema, state machines, API contracts, and security rules.
 

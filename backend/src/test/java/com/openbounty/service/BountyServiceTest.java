@@ -14,6 +14,7 @@ import com.openbounty.exception.ResourceNotFoundException;
 import com.openbounty.model.Bounty;
 import com.openbounty.model.User;
 import com.openbounty.repository.BountyRepository;
+import com.openbounty.repository.ProposalRepository;
 import com.openbounty.repository.UserRepository;
 import com.openbounty.security.UserPrincipal;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +51,9 @@ class BountyServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private ProposalRepository proposalRepository;
 
     @InjectMocks
     private BountyService bountyService;
@@ -222,27 +226,27 @@ class BountyServiceTest {
     @DisplayName("cancelBounty cancels OPEN bounty successfully by owner")
     void testCancelBounty_Success_ByOwner() {
         when(bountyRepository.findById(101L)).thenReturn(Optional.of(sampleBounty));
-        when(bountyRepository.save(any(Bounty.class))).thenReturn(sampleBounty);
+        when(bountyRepository.saveAndFlush(any(Bounty.class))).thenReturn(sampleBounty);
 
         BountyCancelResponse response = bountyService.cancelBounty(101L, clientPrincipal);
 
         assertThat(response.getId()).isEqualTo(101L);
         assertThat(response.getStatus()).isEqualTo(BountyStatus.CANCELLED);
         assertThat(sampleBounty.getStatus()).isEqualTo(BountyStatus.CANCELLED);
-        verify(bountyRepository).save(sampleBounty);
+        verify(bountyRepository).saveAndFlush(sampleBounty);
     }
 
     @Test
     @DisplayName("cancelBounty cancels OPEN bounty successfully by administrator")
     void testCancelBounty_Success_ByAdmin() {
         when(bountyRepository.findById(101L)).thenReturn(Optional.of(sampleBounty));
-        when(bountyRepository.save(any(Bounty.class))).thenReturn(sampleBounty);
+        when(bountyRepository.saveAndFlush(any(Bounty.class))).thenReturn(sampleBounty);
 
         BountyCancelResponse response = bountyService.cancelBounty(101L, adminPrincipal);
 
         assertThat(response.getId()).isEqualTo(101L);
         assertThat(response.getStatus()).isEqualTo(BountyStatus.CANCELLED);
-        verify(bountyRepository).save(sampleBounty);
+        verify(bountyRepository).saveAndFlush(sampleBounty);
     }
 
     @Test
@@ -317,14 +321,14 @@ class BountyServiceTest {
     void testCancelBounty_Success_WhenInReview() {
         sampleBounty.setStatus(BountyStatus.IN_REVIEW);
         when(bountyRepository.findById(101L)).thenReturn(Optional.of(sampleBounty));
-        when(bountyRepository.save(any(Bounty.class))).thenReturn(sampleBounty);
+        when(bountyRepository.saveAndFlush(any(Bounty.class))).thenReturn(sampleBounty);
 
         BountyCancelResponse response = bountyService.cancelBounty(101L, clientPrincipal);
 
         assertThat(response.getId()).isEqualTo(101L);
         assertThat(response.getStatus()).isEqualTo(BountyStatus.CANCELLED);
         assertThat(sampleBounty.getStatus()).isEqualTo(BountyStatus.CANCELLED);
-        verify(bountyRepository).save(sampleBounty);
+        verify(bountyRepository).saveAndFlush(sampleBounty);
     }
 
     @Test

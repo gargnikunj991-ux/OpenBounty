@@ -4,9 +4,8 @@
 ![Java](https://img.shields.io/badge/Java-21-orange.svg)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.3-brightgreen.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)
-![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 
-**OpenBounty** is an enterprise-ready, open-source platform connecting **Clients/Organizations** who have technical challenges with **Developers/Solvers** who propose, build, and deliver milestone-verified solutions.
+**OpenBounty** is an enterprise-ready challenge and bounty collaboration platform connecting **Clients/Organizations** who have technical challenges with **Developers/Solvers** who propose, build, and deliver milestone-verified solutions.
 
 ---
 
@@ -159,5 +158,5 @@ mvn clean test
 ---
 
 ## 📄 License
-
-This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+ 
+All rights reserved. Licensing terms to be determined upon public release.

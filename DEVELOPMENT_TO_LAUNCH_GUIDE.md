@@ -19,7 +19,7 @@ This document is the definitive master guide outlining how to build, harden, dep
 ## 🎯 Executive Overview & Target Personas
 
 OpenBounty succeeds by creating a high-trust, two-sided marketplace:
-1. **Clients / Organizations / Open-Source Maintainers**:
+1. **Clients / Organizations / Project Leads**:
    - **Problem**: Have technical challenges, feature requests, or bugs but lack immediate engineering bandwidth.
    - **Value Proposition**: Escrow-backed milestone delivery, verified code solutions, no upfront risk without reviewed deliverables.
 2. **Developers / Freelancers / Solvers**:
@@ -156,32 +156,32 @@ A two-sided marketplace suffers from the "cold start problem" (developers won't 
          ┌─────────────────────────────────┴─────────────────────────────────┐
          ▼                                                                   ▼
 [ Supply Side: Developers ]                                         [ Demand Side: Bounties ]
-1. Seed with Open-Source bounties.                                  1. Fund initial $500-$2,000 seed bounties.
+1. Seed with real-world technical bounties.                         1. Fund initial $500-$2,000 seed bounties.
 2. Gamify profiles (Reputation + Badges).                           2. Partner with 5-10 early-stage startups.
 3. Promote on Developer Communities.                                3. Offer $0 platform fee for first 100 bounties.
 ```
 
 ### 5.1 Step 1 — Pre-Seed the Marketplace (Zero Empty State)
 * **Never launch with an empty board.**
-* Seed the platform with 10–15 funded, high-quality challenges (e.g. fixing open issues in popular open-source repos, building SDK wrappers, creating UI components).
+* Seed the platform with 10–15 funded, high-quality challenges (e.g. fixing real-world issues in popular repos and projects, building SDK wrappers, creating UI components).
 * Provide clear acceptance criteria and guaranteed reward amounts.
 
 ### 5.2 Step 2 — Targeted Developer Outreach
 * **Where to Acquire Developers**:
-  - **GitHub**: Reach out to contributors of open-source libraries in your tech domain.
+  - **GitHub**: Reach out to active developers and contributors across your tech domain.
   - **Developer Subreddits**: r/programming, r/java, r/reactjs, r/freelance, r/SideProject.
   - **Developer Discords / Tech Communities**: Share bounties directly in "#opportunities" channels.
   - **Hackathons & Universities**: Partner with CS departments for student solver competitions.
 
 ### 5.3 Step 3 — Client & Founder Acquisition
-* **Target Audience**: Early-stage startup founders, solo creators, and open-source maintainers who have backlogs of unbuilt features.
+* **Target Audience**: Early-stage startup founders, solo creators, and project maintainers who have backlogs of unbuilt features.
 * **Incentives**:
   - Zero platform commission fees during Beta.
   - White-glove assistance in structuring challenge requirements and milestone criteria.
 
 ### 5.4 Step 4 — Public Launch Channels
 1. **Product Hunt**: Launch on Tuesday/Wednesday with high-quality demo video and interactive walkthrough.
-2. **Hacker News (Show HN)**: Post a technical deep-dive ("Show HN: OpenBounty — Open-source milestone-verified challenge platform built with Java 21").
+2. **Hacker News (Show HN)**: Post a technical deep-dive ("Show HN: OpenBounty — Milestone-verified challenge platform built with Java 21").
 3. **Dev.to / Hashnode / Medium**: Publish technical engineering articles (e.g. "How We Built a Stateless Spring Security 6 Architecture with PostgreSQL").
 4. **X / Twitter & LinkedIn**: Share daily completed bounty showcases and developer earnings milestones.
 

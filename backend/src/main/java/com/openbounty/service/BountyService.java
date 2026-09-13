@@ -7,21 +7,27 @@ import com.openbounty.dto.response.bounty.BountySummaryResponse;
 import com.openbounty.dto.response.common.PagedResponse;
 import com.openbounty.enums.BountyCategory;
 import com.openbounty.enums.BountyStatus;
+import com.openbounty.enums.ProposalStatus;
 import com.openbounty.enums.Role;
 import com.openbounty.exception.AccessDeniedException;
+import com.openbounty.exception.BadRequestException;
 import com.openbounty.exception.InvalidStateTransitionException;
 import com.openbounty.exception.ResourceNotFoundException;
 import com.openbounty.model.Bounty;
 import com.openbounty.model.User;
 import com.openbounty.repository.BountyRepository;
+import com.openbounty.repository.ProposalRepository;
 import com.openbounty.repository.UserRepository;
 import com.openbounty.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Set;
 
 /**
  * Service managing the Bounty / Challenge lifecycle, including creation,
@@ -32,8 +38,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class BountyService {
 
+    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
+            "id", "title", "rewardAmount", "deadline", "status", "category", "createdAt", "updatedAt"
+    );
+
     private final BountyRepository bountyRepository;
     private final UserRepository userRepository;
+    private final ProposalRepository proposalRepository;
 
     /**
      * Creates a new technical challenge posted by an authenticated client.
@@ -46,6 +57,9 @@ public class BountyService {
     public BountyResponse createBounty(BountyCreateRequest request, UserPrincipal currentUser) {
         log.info("User '{}' (ID: {}) creating new bounty with title: '{}'",
                 currentUser.getEmail(), currentUser.getId(), request.getTitle());
+
+        validateNoMaliciousContent(request.getTitle(), "title");
+        validateNoMaliciousContent(request.getDescription(), "description");
 
         User client = userRepository.findById(currentUser.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", currentUser.getId()));
@@ -88,6 +102,15 @@ public class BountyService {
             String search,
             Pageable pageable
     ) {
+        if (pageable != null && pageable.getSort().isSorted()) {
+            for (Sort.Order order : pageable.getSort()) {
+                if (!ALLOWED_SORT_FIELDS.contains(order.getProperty())) {
+                    log.warn("Rejected invalid or sensitive sort parameter: '{}'", order.getProperty());
+                    throw new BadRequestException("Invalid sort field: '" + order.getProperty() + "'. Allowed sort fields are: " + ALLOWED_SORT_FIELDS);
+                }
+            }
+        }
+
         String keyword = (search != null && !search.isBlank()) ? search.trim() : null;
 
         Page<Bounty> page = bountyRepository.searchBounties(status, category, keyword, pageable);
@@ -122,7 +145,8 @@ public class BountyService {
     public BountyCancelResponse cancelBounty(Long bountyId, UserPrincipal currentUser) {
         log.info("Cancellation requested for bounty ID: {} by user ID: {}", bountyId, currentUser.getId());
 
-        Bounty bounty = bountyRepository.findById(bountyId)
+        Bounty bounty = bountyRepository.findByIdForUpdate(bountyId)
+                .or(() -> bountyRepository.findById(bountyId))
                 .orElseThrow(() -> new ResourceNotFoundException("Bounty", "id", bountyId));
 
         // Ownership verification: Only the creating client or an admin may cancel
@@ -135,18 +159,31 @@ public class BountyService {
             throw new AccessDeniedException("You are not authorized to cancel this bounty. Only the bounty creator can cancel it.");
         }
 
-        // State machine guard: Can only cancel if OPEN or IN_REVIEW
-        if (bounty.getStatus() == BountyStatus.CANCELLED) {
+        // State machine guard: read committed status to defeat cache during concurrent accept/cancel races
+        BountyStatus currentStatus = bountyRepository.findStatusById(bountyId);
+        if (currentStatus == null) {
+            currentStatus = bounty.getStatus();
+        }
+
+        if (currentStatus == BountyStatus.CANCELLED) {
             throw new InvalidStateTransitionException("Bounty is already cancelled.");
         }
 
-        if (bounty.getStatus() != BountyStatus.OPEN && bounty.getStatus() != BountyStatus.IN_REVIEW) {
-            log.warn("Invalid cancellation attempt: Bounty ID {} is in state '{}'", bountyId, bounty.getStatus());
-            throw new InvalidStateTransitionException("Bounty", bounty.getStatus(), BountyStatus.CANCELLED);
+        if (currentStatus != BountyStatus.OPEN && currentStatus != BountyStatus.IN_REVIEW) {
+            log.warn("Invalid cancellation attempt: Bounty ID {} is in state '{}'", bountyId, currentStatus);
+            throw new InvalidStateTransitionException("Bounty", currentStatus, BountyStatus.CANCELLED);
         }
 
         bounty.setStatus(BountyStatus.CANCELLED);
-        bountyRepository.save(bounty);
+        bountyRepository.saveAndFlush(bounty);
+
+        // Reject all active PENDING proposals for this bounty to eliminate ghost proposals
+        int rejectedProposals = proposalRepository.updateProposalsStatusByBountyIdAndStatus(
+                bounty.getId(),
+                ProposalStatus.PENDING,
+                ProposalStatus.REJECTED
+        );
+        log.info("Transitioned {} pending proposals to REJECTED for cancelled bounty ID: {}", rejectedProposals, bounty.getId());
 
         log.info("Bounty ID: {} successfully cancelled by user ID: {}", bountyId, currentUser.getId());
 
@@ -155,5 +192,14 @@ public class BountyService {
                 .status(BountyStatus.CANCELLED)
                 .message("Bounty has been successfully cancelled.")
                 .build();
+    }
+
+    private void validateNoMaliciousContent(String input, String fieldName) {
+        if (input == null) return;
+        String lower = input.toLowerCase();
+        if (lower.contains("<script") || lower.contains("javascript:") || lower.contains("onerror=") || lower.contains("onload=")) {
+            log.warn("Malicious script payload detected in bounty field '{}': {}", fieldName, input);
+            throw new BadRequestException("Malicious content detected in " + fieldName + ". HTML script tags and javascript handlers are not permitted.");
+        }
     }
 }

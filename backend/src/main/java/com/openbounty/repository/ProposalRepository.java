@@ -67,15 +67,34 @@ public interface ProposalRepository extends JpaRepository<Proposal, Long> {
     long countByBountyId(Long bountyId);
 
     /**
+     * Scalar projection to read the true committed status of a proposal directly from DB,
+     * bypassing any first-level entity cache during concurrent transactions.
+     */
+    @Query("SELECT p.status FROM Proposal p WHERE p.id = :id")
+    ProposalStatus findStatusById(@Param("id") Long id);
+
+    /**
      * Atomic JPQL bulk update to reject all other competing proposals when one is accepted.
      * Executes in a single SQL statement:
      * UPDATE proposals SET status = 'REJECTED' WHERE bounty_id = ? AND id <> ?
      */
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("UPDATE Proposal p SET p.status = :rejectedStatus WHERE p.bounty.id = :bountyId AND p.id <> :acceptedProposalId")
     int rejectCompetingProposals(
             @Param("bountyId") Long bountyId,
             @Param("acceptedProposalId") Long acceptedProposalId,
             @Param("rejectedStatus") ProposalStatus rejectedStatus
+    );
+
+    /**
+     * Bulk update all proposals for a given bounty matching a specific status.
+     * Used when cancelling a bounty to transition all PENDING proposals to REJECTED.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE Proposal p SET p.status = :targetStatus WHERE p.bounty.id = :bountyId AND p.status = :currentStatus")
+    int updateProposalsStatusByBountyIdAndStatus(
+            @Param("bountyId") Long bountyId,
+            @Param("currentStatus") ProposalStatus currentStatus,
+            @Param("targetStatus") ProposalStatus targetStatus
     );
 }
