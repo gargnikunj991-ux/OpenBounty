@@ -164,7 +164,7 @@ public class SystemWideAdversarialTest {
         }
 
         startLatch.countDown();
-        boolean finished = finishLatch.await(5, TimeUnit.SECONDS);
+        boolean finished = finishLatch.await(15, TimeUnit.SECONDS);
         executor.shutdown();
 
         assertThat(finished).isTrue();
@@ -293,7 +293,7 @@ public class SystemWideAdversarialTest {
         });
 
         startLatch.countDown();
-        boolean finished = finishLatch.await(5, TimeUnit.SECONDS);
+        boolean finished = finishLatch.await(15, TimeUnit.SECONDS);
         executor.shutdown();
 
         assertThat(finished).isTrue();

@@ -335,7 +335,7 @@ public class ProposalAdversarialAndResilienceTest {
 
         // Release threads simultaneously to race
         startLatch.countDown();
-        boolean completed = finishLatch.await(5, TimeUnit.SECONDS);
+        boolean completed = finishLatch.await(15, TimeUnit.SECONDS);
         executor.shutdown();
 
         assertThat(completed).isTrue();

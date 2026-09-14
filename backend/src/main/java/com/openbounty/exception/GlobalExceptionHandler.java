@@ -171,6 +171,17 @@ public class GlobalExceptionHandler {
                 "Operation could not be completed due to a database integrity constraint", request);
     }
 
+    @ExceptionHandler({
+        org.springframework.dao.ConcurrencyFailureException.class,
+        jakarta.persistence.PessimisticLockException.class,
+        jakarta.persistence.LockTimeoutException.class
+    })
+    public ResponseEntity<ErrorResponse> handleConcurrencyFailure(Exception ex, HttpServletRequest request) {
+        log.warn("Concurrency / locking conflict during request: {}", ex.getMessage());
+        return buildResponse(HttpStatus.CONFLICT, "concurrent-update-conflict", "Concurrency Conflict",
+                "The resource is currently locked or undergoing concurrent modification. Please retry.", request);
+    }
+
     // =========================================================================
     // 410 GONE Handlers
     // =========================================================================
