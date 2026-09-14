@@ -8,6 +8,10 @@ import com.openbounty.enums.Role;
 import com.openbounty.model.Bounty;
 import com.openbounty.model.User;
 import com.openbounty.repository.BountyRepository;
+import com.openbounty.repository.MilestoneRepository;
+import com.openbounty.repository.ProposalRepository;
+import com.openbounty.repository.RefreshTokenRepository;
+import com.openbounty.repository.ReviewRepository;
 import com.openbounty.repository.UserRepository;
 import com.openbounty.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +53,18 @@ class BountyControllerTest {
     private BountyRepository bountyRepository;
 
     @Autowired
+    private ProposalRepository proposalRepository;
+
+    @Autowired
+    private MilestoneRepository milestoneRepository;
+
+    @Autowired
+    private ReviewRepository reviewRepository;
+
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
     private JwtService jwtService;
 
     @Autowired
@@ -63,7 +79,11 @@ class BountyControllerTest {
 
     @BeforeEach
     void setUp() {
+        milestoneRepository.deleteAll();
+        proposalRepository.deleteAll();
+        reviewRepository.deleteAll();
         bountyRepository.deleteAll();
+        refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
 
         clientUser = userRepository.save(User.builder()

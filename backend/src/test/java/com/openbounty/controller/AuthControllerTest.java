@@ -6,7 +6,11 @@ import com.openbounty.dto.request.auth.LoginRequest;
 import com.openbounty.dto.request.auth.RefreshTokenRequest;
 import com.openbounty.dto.request.auth.RegisterRequest;
 import com.openbounty.enums.Role;
+import com.openbounty.repository.BountyRepository;
+import com.openbounty.repository.MilestoneRepository;
+import com.openbounty.repository.ProposalRepository;
 import com.openbounty.repository.RefreshTokenRepository;
+import com.openbounty.repository.ReviewRepository;
 import com.openbounty.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,8 +44,24 @@ class AuthControllerTest {
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Autowired
+    private BountyRepository bountyRepository;
+
+    @Autowired
+    private ProposalRepository proposalRepository;
+
+    @Autowired
+    private MilestoneRepository milestoneRepository;
+
+    @Autowired
+    private ReviewRepository reviewRepository;
+
     @BeforeEach
     void setUp() {
+        milestoneRepository.deleteAll();
+        proposalRepository.deleteAll();
+        reviewRepository.deleteAll();
+        bountyRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
     }

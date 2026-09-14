@@ -14,8 +14,10 @@ import com.openbounty.model.Proposal;
 import com.openbounty.model.RefreshToken;
 import com.openbounty.model.User;
 import com.openbounty.repository.BountyRepository;
+import com.openbounty.repository.MilestoneRepository;
 import com.openbounty.repository.ProposalRepository;
 import com.openbounty.repository.RefreshTokenRepository;
+import com.openbounty.repository.ReviewRepository;
 import com.openbounty.repository.UserRepository;
 import com.openbounty.service.RefreshTokenService;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,6 +79,12 @@ public class SystemWideAdversarialTest {
     private ProposalRepository proposalRepository;
 
     @Autowired
+    private MilestoneRepository milestoneRepository;
+
+    @Autowired
+    private ReviewRepository reviewRepository;
+
+    @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
     @Autowired
@@ -95,7 +103,9 @@ public class SystemWideAdversarialTest {
 
     @BeforeEach
     void setUp() {
+        milestoneRepository.deleteAll();
         proposalRepository.deleteAll();
+        reviewRepository.deleteAll();
         bountyRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
