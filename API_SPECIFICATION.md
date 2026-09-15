@@ -186,16 +186,30 @@ This document provides the exhaustive API reference and contract for the **OpenB
 
 ---
 
+### 2.1 Create a Bounty
+* **Endpoint:** `POST /api/bounties`
+* **Access:** `ROLE_CLIENT` only
+* **Headers:** `Authorization: Bearer <jwt_token>`
+* **Validation & Security Guards:**
+  - `title`: Required, 5–200 characters. Sanitized against XSS (script tags and event handlers rejected with `400 Bad Request`).
+  - `description`: Required, 10–5000 characters. Sanitized against XSS.
+  - `category`: Valid `BountyCategory` enum.
+  - `rewardAmount`: Must be > 0.
+  - `deadline`: Must be a future date (`@FutureOrPresent`).
+
+---
+
 ### 2.2 List & Search Bounties (Paginated & Filtered)
 * **Endpoint:** `GET /api/bounties`
 * **Access:** Public
 * **Query Parameters:**
   - `status` *(optional)*: `OPEN`, `IN_REVIEW`, `ASSIGNED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`
   - `category` *(optional)*: `WEB_DEVELOPMENT`, `AI_ML`, `BACKEND_API`, etc.
-  - `search` *(optional)*: Keyword matching title or description.
+  - `search` *(optional)*: Keyword matching title or description (case-insensitive).
   - `page` *(optional, default `0`)*: Zero-indexed page number.
   - `size` *(optional, default `10`)*: Items per page.
   - `sort` *(optional, default `createdAt,desc`)*: Sort field and direction.
+* **Security Guard:** Strict whitelist on sort properties (`id`, `title`, `rewardAmount`, `deadline`, `status`, `category`, `createdAt`, `updatedAt`). Probing sensitive internal fields (e.g. `client.password`) immediately returns `400 Bad Request`.
 
 #### Example Request
 `GET /api/bounties?category=BACKEND_API&status=OPEN&page=0&size=10&sort=rewardAmount,desc`
@@ -260,6 +274,7 @@ This document provides the exhaustive API reference and contract for the **OpenB
 * **Endpoint:** `PATCH /api/bounties/{id}/cancel`
 * **Access:** `ROLE_CLIENT` (Must be the creator/owner)
 * **Guard Conditions:** Cannot cancel if bounty is already `ASSIGNED`, `IN_PROGRESS`, or `COMPLETED`.
+* **State Invariant & Cascade Cleanup:** Automatically purges ghost proposals by bulk-transitioning all active `PENDING` proposals to `REJECTED`.
 
 #### Response `200 OK`
 ```json
@@ -278,7 +293,13 @@ This document provides the exhaustive API reference and contract for the **OpenB
 * **Endpoint:** `POST /api/bounties/{id}/proposals`
 * **Access:** `ROLE_DEVELOPER`
 * **Headers:** `Authorization: Bearer <jwt_token>`
-* **Guard Conditions:** Developer cannot submit duplicate proposals for the same bounty; bounty must be in `OPEN` or `IN_REVIEW` status.
+* **Guard Conditions & Defensive Rules:**
+  - **Duplicate Prevention:** Developer cannot submit multiple proposals for the same bounty (`409 Conflict`).
+  - **State Guard:** Bounty must be in `OPEN` or `IN_REVIEW` status (`409 Conflict`).
+  - **Expiry Guard:** Bounty deadline must not have passed. Submissions on expired bounties return `410 Gone` (`BountyExpiredException`).
+  - **Self-Dealing Guard:** Clients cannot bid on their own bounties (`400 Bad Request` with title `Self-Dealing Forbidden`).
+  - **Budget Cap Guard:** Proposed amount cannot exceed the client's posted `rewardAmount` (`400 Bad Request`).
+  - **Milestone Decomposition:** Must include at least 1 valid milestone breakdown.
 
 #### Request Body
 ```json
@@ -525,9 +546,10 @@ All error responses return a standardized JSON structure:
 ### Common HTTP Status Codes
 * `200 OK`: Request succeeded.
 * `201 Created`: Resource successfully created.
-* `400 Bad Request`: Malformed payload or validation failure.
-* `401 Unauthorized`: Missing or invalid JWT Bearer token.
-* `403 Forbidden`: Authenticated user lacks required role or ownership.
+* `400 Bad Request`: Malformed payload, validation failure, self-dealing attempt, or unsanitized script payload.
+* `401 Unauthorized`: Missing or invalid JWT Bearer token, or revoked refresh token reuse.
+* `403 Forbidden`: Authenticated user lacks required role, cross-tenant IDOR access denied.
 * `404 Not Found`: Requested entity does not exist.
-* `409 Conflict`: Business state conflict (e.g. Duplicate proposal or illegal state transition).
+* `409 Conflict`: Business state conflict (duplicate proposal, illegal state transition, or concurrent modification race condition).
+* `410 Gone`: Resource expired and no longer accepting actions (e.g. submitting proposals to an expired bounty).
 * `500 Internal Server Error`: Unhandled server exception.

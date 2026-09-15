@@ -11,6 +11,7 @@ erDiagram
     USERS ||--o{ BOUNTIES : "creates (as Client)"
     USERS ||--o{ PROPOSALS : "submits (as Developer)"
     USERS ||--o{ REVIEWS : "gives / receives"
+    USERS ||--o{ REFRESH_TOKENS : "owns (active sessions)"
     BOUNTIES ||--o{ PROPOSALS : "receives"
     BOUNTIES ||--o| USERS : "assigned to (Winner Dev)"
     PROPOSALS ||--o{ MILESTONES : "broken down into"
@@ -71,6 +72,15 @@ erDiagram
         bigint reviewee_id FK
         int rating
         text feedback
+        timestamp created_at
+    }
+
+    REFRESH_TOKENS {
+        bigint id PK
+        bigint user_id FK
+        varchar(100) token UK
+        timestamp expiry_date
+        boolean revoked
         timestamp created_at
     }
 ```
@@ -170,6 +180,19 @@ CREATE TABLE reviews (
     CONSTRAINT fk_reviews_reviewee FOREIGN KEY (reviewee_id) REFERENCES users(id) ON DELETE RESTRICT,
     CONSTRAINT uq_review_participant UNIQUE (bounty_id, reviewer_id, reviewee_id)
 );
+
+-- =============================================================================
+-- 6. REFRESH_TOKENS TABLE
+-- =============================================================================
+CREATE TABLE refresh_tokens (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    token VARCHAR(100) NOT NULL UNIQUE,
+    expiry_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    revoked BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 ```
 
 ---
@@ -205,6 +228,11 @@ CREATE INDEX idx_milestones_status ON milestones(status);
 -- Indexes for Reviews & Reputation Aggregation
 CREATE INDEX idx_reviews_reviewee_id ON reviews(reviewee_id);
 CREATE INDEX idx_reviews_bounty_id ON reviews(bounty_id);
+
+-- Indexes for Refresh Tokens (Session Validation & Automated Purge)
+CREATE UNIQUE INDEX idx_refresh_tokens_token ON refresh_tokens(token);
+CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_expiry ON refresh_tokens(expiry_date);
 ```
 
 ---
@@ -253,3 +281,9 @@ CREATE INDEX idx_reviews_bounty_id ON reviews(bounty_id);
 | | `reviewee_id` | `BIGINT` | `FK -> users(id)`, `NOT NULL` | User receiving the review |
 | | `rating` | `INT` | `NOT NULL`, `1 <= rating <= 5` | Star rating |
 | | `feedback` | `TEXT` | | Written review comment |
+| **`refresh_tokens`** | `id` | `BIGSERIAL` | `PK`, Auto-increment | Unique refresh token session identifier |
+| | `user_id` | `BIGINT` | `FK -> users(id)`, `NOT NULL` | User associated with the refresh token session |
+| | `token` | `VARCHAR(100)` | `NOT NULL`, `UNIQUE` | Cryptographically random UUID token string |
+| | `expiry_date` | `TIMESTAMP` | `NOT NULL` | Token expiration timestamp (default 24 hours) |
+| | `revoked` | `BOOLEAN` | `NOT NULL`, `DEFAULT FALSE` | Revocation status flag for reuse detection |
+| | `created_at` | `TIMESTAMP` | `NOT NULL` | Creation timestamp |
