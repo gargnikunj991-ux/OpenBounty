@@ -9,16 +9,34 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface BountyRepository extends JpaRepository<Bounty, Long>, JpaSpecificationExecutor<Bounty> {
+
+    /**
+     * Acquires a PESSIMISTIC_WRITE (SELECT ... FOR UPDATE) lock on the bounty row.
+     * Used in acceptProposal to serialize concurrent acceptance requests and prevent deadlocks.
+     * The first thread to acquire this lock wins; subsequent threads wait in a queue.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM Bounty b WHERE b.id = :id")
+    Optional<Bounty> findByIdForUpdate(@Param("id") Long id);
+
+    /**
+     * Scalar projection to read the true committed status of a bounty directly from DB,
+     * bypassing any first-level entity cache during concurrent transactions.
+     */
+    @Query("SELECT b.status FROM Bounty b WHERE b.id = :id")
+    BountyStatus findStatusById(@Param("id") Long id);
 
     /**
      * Find a bounty by ID with client and assigned developer eagerly fetched.

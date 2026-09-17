@@ -103,3 +103,85 @@ Adopt **RFC 7807 Problem Details for HTTP APIs** using Spring Boot `@RestControl
 * **Positive**:
   - Standardized JSON error response across all modules containing `type`, `title`, `status`, `detail`, `instance`, and `timestamp`.
   - Nested validation error map (`errors: { field: message }`) for granular client-side form feedback.
+
+---
+
+## ADR-006: Strategic Direction — Dual-Track Engineering & Commercial Architecture
+
+### Context
+When building OpenBounty, we evaluated two divergent project paths:
+1. **Academic Portfolio Project**: Focus solely on theoretical design patterns, mocking external services, with zero real-world commercial viability.
+2. **Speed-First Startup MVP**: Hack together third-party no-code tools or quick scripts to get payments working, compromising code quality, concurrency safety, and testing.
+
+### Decision
+Adopt a **Dual-Track Architecture (Production-Grade Hybrid)**:
+* Construct the system as a **commercially viable marketplace** (automated Stripe Connect escrow, 10–15% platform take-rate, dispute protocol, GitHub issue bot integration).
+* Architect the implementation with **enterprise-grade engineering rigor** (immutable double-entry ledger, pessimistic concurrency locking, idempotency keys, and real Testcontainers testing).
+
+### Consequences
+* **Positive**:
+  - Delivers maximum career leverage: signals senior engineering maturity to tech leads and hiring managers by solving real-world distributed state and financial problems.
+  - Retains zero technical debt if deployed as a commercial revenue-generating venture.
+* **Trade-offs**:
+  - Requires deeper upfront design around transactional boundaries, idempotency tables, and webhook resilience.
+
+---
+
+## ADR-007: Financial Consistency — Double-Entry Ledger over Mutable Balances
+
+### Context
+Handling client escrow deposits, developer payouts, and platform take-rate commissions requires absolute mathematical certainty. Storing account balances as a mutable integer column (`balance = balance + X`) is vulnerable to race conditions, lost update anomalies, and provides zero audit history for dispute resolution or tax compliance.
+
+### Decision
+Implement an **Immutable Double-Entry Financial Ledger** (`ledger_entries` table).
+* Every monetary transaction creates balanced `DEBIT` and `CREDIT` entries across predefined accounts (`PLATFORM_CASH`, `CLIENT_ESCROW_LOCKED`, `DEVELOPER_PAYABLE`, `PLATFORM_FEE_REVENUE`).
+* Enforce the fundamental accounting invariant: `SUM(debit_amount) == SUM(credit_amount)`.
+
+### Consequences
+* **Positive**:
+  - Mathematical impossibility of phantom balance creation or untracked money leaks.
+  - Complete, tamper-proof GAAP-compliant audit log for every transaction, refund, or payout split.
+  - Direct alignment with fintech engineering standards expected in senior backend roles.
+* **Trade-offs**:
+  - Querying current account balances requires aggregation (`SUM(debits) - SUM(credits)`), mitigated by indexed account queries and periodic balance snapshots if scale demands.
+
+---
+
+## ADR-008: Concurrency & Idempotency — Pessimistic Row Locking & Idempotency Keys
+
+### Context
+In a bounty marketplace, critical race conditions can occur:
+1. Two proposal actions or simultaneous client clicks could attempt to accept multiple competing proposals or disburse milestone payouts concurrently.
+2. Flaky mobile/network connections might cause clients to retry HTTP POST/PATCH requests, potentially resulting in duplicate payments.
+
+### Decision
+1. Apply **Pessimistic Database Row Locking** (`LockModeType.PESSIMISTIC_WRITE` / `SELECT ... FOR UPDATE`) on bounty and milestone rows during state-changing operations.
+2. Implement an **Idempotency Engine**: require an `Idempotency-Key` header on financial mutation endpoints, caching the SHA-256 request payload hash and response status to return deterministic cached responses on retries.
+
+### Consequences
+* **Positive**:
+  - Absolute protection against double-spending and multiple winning developer assignments.
+  - Clean idempotency handling conforming to Stripe-level payment engineering standards.
+* **Trade-offs**:
+  - Database row locks must be held for minimal duration to avoid database connection pool exhaustion. Long external HTTP calls (e.g. Stripe API calls) must occur outside the locked database transaction.
+
+---
+
+## ADR-009: Integration Testing — Testcontainers over In-Memory H2
+
+### Context
+In-memory H2 databases fail to accurately replicate production PostgreSQL behavior:
+* Native JSONB column operators and indexing.
+* Row-level locking behavior under concurrency (`SELECT ... FOR UPDATE`).
+* Case-sensitivity, constraints, and specific PostgreSQL time functions.
+
+### Decision
+Standardize all integration test suites on **Testcontainers** (`org.testcontainers:postgresql`).
+
+### Consequences
+* **Positive**:
+  - 100% parity between local test suites, CI/CD pipeline runs, and production PostgreSQL 16 managed databases.
+  - Eliminates "works on H2, fails on Postgres" production defects.
+* **Trade-offs**:
+  - Test execution requires an active Docker daemon and adds a few seconds of initial container startup overhead.
+

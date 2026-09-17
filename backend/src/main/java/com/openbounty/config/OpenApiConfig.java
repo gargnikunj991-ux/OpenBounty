@@ -26,8 +26,8 @@ public class OpenApiConfig {
                                 .name("OpenBounty Engineering")
                                 .email("support@openbounty.com"))
                         .license(new License()
-                                .name("Apache 2.0")
-                                .url("https://www.apache.org/licenses/LICENSE-2.0")))
+                                .name("Proprietary")
+                                .url("https://openbounty.dev")))
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new Components()
                         .addSecuritySchemes(SECURITY_SCHEME_NAME,
