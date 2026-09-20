@@ -129,16 +129,16 @@ This document outlines the master engineering roadmap to transform **OpenBounty*
 
 ---
 
-## Phase 8: Milestone Tracking & Deliverable Verification Module 🚀
-* **Status**: Next Up
+## Phase 8: Milestone Tracking & Deliverable Verification Module ✅
+* **Status**: Completed
 * **Goal**: Break projects into verified deliverables with client review loops and auto-completion triggers.
 * **Key Deliverables**:
   1. `MilestoneService` & `MilestoneController`.
   2. `POST /api/milestones/{id}/submit`: Developer submits deliverable proof (GitHub PR link, live staging URL, test results).
-  3. `PATCH /api/milestones/{id}/approve`: Client reviews and approves milestone deliverable.
-  4. `POST /api/milestones/{id}/request-revision`: Client requests revisions with required changes feedback.
-  5. Automatic Completion Trigger: When 100% of milestones are approved, automatically transition bounty to `COMPLETED`.
-* **Engineering Concept**: Workflow automation, state machine progress tracking, deliverable verification.
+  3. `PATCH /api/milestones/{id}/approve`: Client reviews and approves milestone deliverable with pessimistic write row lock (`SELECT ... FOR UPDATE`).
+  4. `POST /api/milestones/{id}/request-revision`: Client requests revisions with required changes feedback, resetting to `PENDING`.
+  5. Automatic Completion Trigger: When 100% of milestones are approved, automatically transitions bounty to `COMPLETED` and awards developer reputation points (+20).
+* **Engineering Concept**: Workflow automation, sequential state machine guards (`MilestoneOrderViolationException`), IDOR access verification, auto-completion trigger.
 
 ---
 
