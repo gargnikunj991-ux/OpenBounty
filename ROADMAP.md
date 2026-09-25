@@ -1,29 +1,29 @@
-# OpenBounty — 14-Phase Dual-Track Engineering Roadmap
+# OpenBounty — 14-Phase Backend Engineering Roadmap
 
-This document outlines the master engineering roadmap to transform **OpenBounty** from core architecture into an enterprise-grade, escrow-backed, revenue-generating marketplace platform — balancing **Track 1 (Resume & Senior Engineering Signals)** with **Track 2 (Commercial Monetization & Stripe Escrow)**.
+This document outlines the master engineering roadmap to transform **OpenBounty** into an enterprise-grade, high-concurrency backend platform — tailored specifically as a **standout portfolio project for Senior/Mid-Senior Backend Engineer resumes and technical interviews**.
 
 ---
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                       DUAL-TRACK ROADMAP TOPOLOGY                                       │
+│                                   BACKEND ENGINEERING ROADMAP TOPOLOGY                                  │
 │                                                                                                         │
 │  [Phase 1] Setup & Config   ──► [Phase 2] Domain Entities   ──► [Phase 3] Repositories                  │
-│  (Foundation)                   (Foundation)                    (Pessimistic Locking / Resume)          │
+│  (Foundation)                   (JPA Relational Schema)         (Pessimistic Locking / Projections)     │
 │                                                                         │                               │
 │  [Phase 6] Bounty Module    ◄── [Phase 5] Spring Security   ◄── [Phase 4] DTOs & RFC 7807 Exceptions    │
-│  (Core Product)                 (Stateless JWT / RBAC)          (API Standardization / Resume)          │
+│  (State Machine & Filtering)    (Stateless JWT / RTR)           (API Standardization / Error Envelopes) │
 │         │                                                                                               │
 │         ▼                                                                                               │
-│  [Phase 7] Proposals & Bids ──► [Phase 8] Milestones & Proof ──► [Phase 9] Reviews & Reputation Score   │
-│  (Atomic Concurrency / Resume)  (State Machine Delivery)        (Social Proof / Commercial Trust)       │
+│  [Phase 7] Proposals & Bids ──► [Phase 8] Milestones & Proof ──► [Phase 9] Reviews & Reputation Engine  │
+│  (Atomic Concurrency Locks)     (Deliverable Verification)      (SQL Aggregations / Weighted Scores)    │
 │                                                                         │                               │
-│  [Phase 12] Double Ledger   ◄── [Phase 11] Dispute Protocol ◄── [Phase 10] Stripe Escrow & Take-Rate    │
-│  (Financial Rigor / Resume)     (Auto-Release Guard)            (Core Monetization / Commercial)        │
+│  [Phase 12] Flyway & Redis  ◄── [Phase 11] Idempotency & Auto◄──[Phase 10] Double-Entry Ledger & Escrow │
+│  (Migrations & Rate Limit)      (Replay Defense & Auto-Release) (GAAP Invariants & Debit/Credit)        │
 │         │                                                                                               │
 │         ▼                                                                                               │
-│  [Phase 13] Testcontainers & S3►[Phase 14] Portfolio & Launch──►[LIVE PRODUCTION] Dual-Track Deployment │
-│  (Real Docker Tests / DevOps)   (Interview Defense & GTM)       (Revenue + Elite Engineering Showcase)  │
+│  [Phase 13] Testcontainers  ──► [Phase 14] Portfolio Artifacts                                         │
+│  (Real Docker Tests & Telemetry)(STAR Bullets & Interview Q&A)                                          │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -129,22 +129,22 @@ This document outlines the master engineering roadmap to transform **OpenBounty*
 
 ---
 
-## Phase 8: Milestone Tracking & Deliverable Verification Module 🚀
-* **Status**: Next Up
+## Phase 8: Milestone Tracking & Deliverable Verification Module ✅
+* **Status**: Completed
 * **Goal**: Break projects into verified deliverables with client review loops and auto-completion triggers.
 * **Key Deliverables**:
   1. `MilestoneService` & `MilestoneController`.
   2. `POST /api/milestones/{id}/submit`: Developer submits deliverable proof (GitHub PR link, live staging URL, test results).
-  3. `PATCH /api/milestones/{id}/approve`: Client reviews and approves milestone deliverable.
-  4. `POST /api/milestones/{id}/request-revision`: Client requests revisions with required changes feedback.
-  5. Automatic Completion Trigger: When 100% of milestones are approved, automatically transition bounty to `COMPLETED` and trigger reward release.
-* **Engineering Concept**: Workflow automation, state machine progress tracking, deliverable verification.
+  3. `PATCH /api/milestones/{id}/approve`: Client reviews and approves milestone deliverable with pessimistic write row lock (`SELECT ... FOR UPDATE`).
+  4. `POST /api/milestones/{id}/request-revision`: Client requests revisions with required changes feedback, resetting to `PENDING`.
+  5. Automatic Completion Trigger: When 100% of milestones are approved, automatically transitions bounty to `COMPLETED` and awards developer reputation points (+20).
+* **Engineering Concept**: Workflow automation, sequential state machine guards (`MilestoneOrderViolationException`), IDOR access verification, auto-completion trigger.
 
 ---
 
 ## Phase 9: Reviews, Ratings & Algorithmic Reputation Engine 🚀
 * **Status**: In Queue
-* **Goal**: Build social proof, rating mechanics, and dynamic solver reputation scoring.
+* **Goal**: Build rating mechanics, SQL aggregations, and dynamic solver reputation scoring.
 * **Key Deliverables**:
   1. `ReviewService` & `ReviewController`.
   2. `POST /api/reviews`: Submit rating (1–5) and written feedback upon bounty completion.
@@ -158,42 +158,9 @@ This document outlines the master engineering roadmap to transform **OpenBounty*
 
 ---
 
-## Phase 10: Payment Rails, Stripe Escrow & Monetization Engine (The Money-Maker) 💰
-* **Status**: Planned (Core Monetization)
-* **Goal**: Integrate real fiat currency rails, automated escrow custody, and platform take-rate monetization.
-* **Key Deliverables**:
-  1. **Stripe Checkout / PaymentIntents (Upfront Escrow Deposit)**:
-     - Clients must deposit the bounty reward upfront before the bounty transitions to `OPEN`.
-     - Funds are locked securely in platform escrow.
-  2. **Stripe Connect (Custom / Express)**:
-     - Automated onboarding for developers to link bank accounts and complete KYC identity checks.
-  3. **Platform Take-Rate (Commission Engine)**:
-     - Automated **10%–15% commission** deducted on every milestone approval:
-       - Example: $1,000 Milestone Approval -> $850 disbursed to developer, $150 captured as platform net revenue.
-  4. **Stripe Webhook Listener**:
-     - Asynchronous webhook processor for `payment_intent.succeeded`, `charge.refunded`, `transfer.created`.
-     - Webhook cryptographic signature verification and idempotency protection.
-* **Engineering Concept**: Escrow custody, payment gateway APIs, automated platform fee deduction, webhook reliability.
-
----
-
-## Phase 11: Dispute Resolution & Inactivity Auto-Release Guard ⚖️
-* **Status**: Planned
-* **Goal**: Protect marketplace trust, handle client-developer disagreements, and prevent developer ghosting/non-payment.
-* **Key Deliverables**:
-  1. `POST /api/milestones/{id}/dispute`: Developer or client initiates dispute, instantly freezing escrow.
-  2. Evidence submission: Both parties upload PR links, chat transcripts, and test artifacts.
-  3. `ROLE_ADMIN` / Arbitrator Portal:
-     - Administrative endpoints to review deliverable code and execute binding settlements (100% developer release, 100% client refund, or 50/50 split).
-  4. **14-Day Inactivity Auto-Release Worker**:
-     - Spring `@Scheduled` background worker: If a developer submits a deliverable and the client does not review or reject it within 14 calendar days, funds are automatically released to the developer.
-* **Engineering Concept**: Dispute state machines, administrative override authorization, automated timeout guards.
-
----
-
-## Phase 12: Double-Entry Financial Ledger & Idempotency Engine 📒
-* **Status**: Planned
-* **Goal**: Guarantee zero financial reconciliation errors, eliminate duplicate charges, and maintain GAAP-compliant audit trails.
+## Phase 10: In-House Escrow & Double-Entry Financial Ledger 📒
+* **Status**: Planned (Core Backend Engineering Signal)
+* **Goal**: Guarantee zero financial reconciliation errors, eliminate balance drift, and maintain GAAP-compliant audit trails.
 * **Key Deliverables**:
   1. Immutable `ledger_entries` table recording balanced Debits and Credits.
   2. Standard Ledger Accounts:
@@ -201,44 +168,68 @@ This document outlines the master engineering roadmap to transform **OpenBounty*
      - `CLIENT_ESCROW_LOCKED`
      - `DEVELOPER_PAYABLE`
      - `PLATFORM_FEE_REVENUE`
-  3. `Idempotency-Key` HTTP Header Interceptor:
-     - Caches payment operation hashes to ensure retried requests never double-charge clients or double-payout developers.
-* **Engineering Concept**: Double-entry bookkeeping, ACID financial consistency, idempotency key caches.
+  3. Invariant Enforcer: Strict validation verifying $\sum \text{Debit} \equiv \sum \text{Credit}$ on every financial journal entry.
+  4. Automated Escrow Lifecycle:
+     - Locking funds on bounty publication (`CLIENT_ESCROW_LOCKED`).
+     - Splitting funds upon milestone approval (Developer disbursement + Platform take-rate).
+* **Engineering Concept**: Double-entry bookkeeping, ACID financial consistency, transactional invariants.
 
 ---
 
-## Phase 13: Testcontainers, Observability & Cloud Infrastructure 🛡️
-* **Status**: Planned (Track 1: Resume & DevOps Signal)
-* **Goal**: Harden the backend for high concurrency, continuous integration testing with real databases, and production monitoring.
+## Phase 11: Distributed Idempotency Engine & State Resiliency 🛡️
+* **Status**: Planned
+* **Goal**: Eliminate duplicate charges, prevent replay attacks, and handle client inactivity automatically.
 * **Key Deliverables**:
-  1. **Testcontainers Integration Test Suite**:
-     - Automated MockMvc tests executing against real, ephemeral PostgreSQL 16 and Redis Docker containers (`@Testcontainers`).
-     - Zero reliance on in-memory H2; tests exact locking, constraints, and JSONB queries.
+  1. `Idempotency-Key` HTTP Header Interceptor:
+     - Hashes request payloads (SHA-256) and caches execution status.
+     - Returns deterministic cached responses on retried requests.
+  2. 14-Day Inactivity Auto-Release Worker:
+     - Spring `@Scheduled` background worker: Automatically releases escrow to the developer if a deliverable remains unreviewed for 14 calendar days.
+  3. Dispute Protocol:
+     - `POST /api/milestones/{id}/dispute` freezing escrow and escalating to `ROLE_ADMIN` settlement.
+* **Engineering Concept**: Distributed idempotency, background job scheduling, defensive state machines.
+
+---
+
+## Phase 12: Production Performance: Flyway Migrations, Redis Caching & Rate Limiting ⚡
+* **Status**: Planned
+* **Goal**: Upgrade schema management to zero-downtime migrations and protect the system with distributed caching and rate limiting.
+* **Key Deliverables**:
+  1. **Flyway Versioned Migrations**:
+     - Replace Hibernate `ddl-auto` with versioned, immutable SQL scripts (`V1__init.sql` through `V4__ledger.sql`).
+  2. **Redis Distributed Caching**:
+     - Spring Cache abstraction (`@Cacheable`, `@CacheEvict`) for high-traffic read endpoints (bounty listings, categories).
+  3. **Bucket4j Distributed Rate Limiting**:
+     - Token-bucket rate limiting filter preventing credential stuffing on `/api/auth/*` and spam on bid submission.
+* **Engineering Concept**: Schema evolution safety, cache-aside pattern, token bucket algorithm.
+
+---
+
+## Phase 13: Enterprise Testing & Observability: Testcontainers & Telemetry 🧪
+* **Status**: Planned (Senior SRE & DevOps Signal)
+* **Goal**: Harden backend reliability with real containerized tests and production-grade observability.
+* **Key Deliverables**:
+  1. **Testcontainers Integration Test Harness**:
+     - Automated test suites executing against real, ephemeral PostgreSQL 16 and Redis Docker containers (`@Testcontainers`).
+     - Zero reliance on in-memory H2; validates native PostgreSQL locking and constraints.
   2. **Production Observability & Metrics**:
      - Spring Boot Actuator with `/actuator/prometheus` scraping endpoint.
      - Custom Micrometer counters and timers: `bounties.funded.total`, `milestones.approved.duration`, `ledger.transactions.count`.
-     - Structured logging with MDC correlation IDs for end-to-end request tracing.
-  3. **Flyway Database Migrations**:
-     - Transition away from Hibernate `ddl-auto` to versioned, immutable SQL migrations (`V1__init.sql` through `V6__payments.sql`).
-  4. **Redis Distributed Caching & Rate Limiting**:
-     - Bucket4j token bucket rate limiting on auth and proposal endpoints.
-     - Cache eviction strategies on public bounty search endpoints.
-* **Engineering Concept**: Distributed systems testing, containerized CI/CD, production telemetry, database migration safety.
+     - Structured logging with MDC correlation IDs (`X-Correlation-ID`) for distributed tracing.
+  3. **Concurrency Load Benchmarking**:
+     - Reproducible k6 / JMeter load test scripts benchmarking throughput (1,000+ req/sec) and p99 latency under concurrent contention.
+* **Engineering Concept**: Ephemeral container testing, production telemetry, performance benchmarking.
 
 ---
 
-## Phase 14: Portfolio Presentation & Dual-Track Public Launch 🚀
-* **Status**: Planned (Dual Launch)
-* **Goal**: Package the platform for senior technical interview showcases while deploying a live, commercially viable marketplace.
+## Phase 14: Portfolio Presentation & Technical Interview Defense Guide 📄
+* **Status**: Planned
+* **Goal**: Package the platform for senior backend engineering resume reviews and technical interview defense.
 * **Key Deliverables**:
-  1. **Technical Interview & Portfolio Package**:
-     - Published Architecture Decision Records (ADRs) and comprehensive system design diagrams.
-     - 4 high-impact resume bullet points covering concurrency, double-entry ledger, Testcontainers, and Stripe rails.
-     - Documented performance benchmarks (e.g. k6 / Locust load testing at 1,000 req/sec with p99 < 150ms).
-  2. **Commercial Go-to-Market (GTM) Deployment**:
-     - Cloud deployment on Render / AWS ECS with managed PostgreSQL and Cloudflare SSL/DDoS protection.
-     - Live Stripe Connect sandbox-to-production cutover with webhook listeners.
-     - Pre-seeding marketplace with 10–15 funded real-world open source bounties.
-     - GitHub App / Bot integration allowing maintainers to fund bounties directly via `/bounty $100` on issues.
-* **Engineering Concept**: Systems design defense, high-load benchmarking, commercial developer acquisition.
-
+  1. **Resume-Ready STAR Bullet Points**:
+     - Polished, quantified bullets highlighting concurrency, financial ledger, caching, and Testcontainers.
+  2. **System Design Deep-Dive Artifact**:
+     - Complete architectural diagrams, sequence flows, and concurrency lock explanations.
+  3. **Technical Interview Defense Script**:
+     - Model answers for senior interview questions (e.g., handling deadlocks, isolation levels, double-entry invariants, and caching strategies).
+* **Engineering Concept**: Systems design communication, engineering storytelling, interview readiness.

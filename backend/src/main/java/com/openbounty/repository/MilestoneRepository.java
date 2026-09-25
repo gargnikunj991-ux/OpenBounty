@@ -2,8 +2,10 @@ package com.openbounty.repository;
 
 import com.openbounty.enums.MilestoneStatus;
 import com.openbounty.model.Milestone;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -21,12 +23,22 @@ public interface MilestoneRepository extends JpaRepository<Milestone, Long> {
     List<Milestone> findByProposalIdOrderByIdAsc(Long proposalId);
 
     /**
-     * Retrieve a milestone by ID with proposal, bounty, and developer relationships eagerly loaded.
+     * Retrieve a milestone by ID with proposal, bounty, client, and developer relationships eagerly loaded.
      * Prevents multiple SELECT queries when verifying deliverable submission ownership or client approvals.
      */
-    @EntityGraph(attributePaths = {"proposal", "proposal.bounty", "proposal.developer"})
+    @EntityGraph(attributePaths = {"proposal", "proposal.bounty", "proposal.bounty.client", "proposal.developer"})
     @Query("SELECT m FROM Milestone m WHERE m.id = :id")
     Optional<Milestone> findWithDetailsById(@Param("id") Long id);
+
+    /**
+     * Acquires a PESSIMISTIC_WRITE (SELECT ... FOR UPDATE) lock on the milestone row.
+     * Prevents race conditions such as concurrent double-approvals, double reputation bonuses,
+     * or conflicting state transitions between client approval and developer revisions.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"proposal", "proposal.bounty", "proposal.bounty.client", "proposal.developer"})
+    @Query("SELECT m FROM Milestone m WHERE m.id = :id")
+    Optional<Milestone> findByIdForUpdate(@Param("id") Long id);
 
     /**
      * Count total milestones belonging to a proposal.
