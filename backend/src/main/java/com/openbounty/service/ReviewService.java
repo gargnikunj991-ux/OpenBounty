@@ -102,10 +102,11 @@ public class ReviewService {
             throw new DuplicateResourceException("You have already submitted a review for this bounty.");
         }
 
-        // Fetch managed user entities
+        // Fetch managed user entities (reviewee locked with SELECT ... FOR UPDATE to eliminate lost update race conditions)
         User reviewer = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", currentUserId));
-        User reviewee = userRepository.findById(request.getRevieweeId())
+        User reviewee = userRepository.findByIdForUpdate(request.getRevieweeId())
+                .or(() -> userRepository.findById(request.getRevieweeId()))
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getRevieweeId()));
 
         // Build and persist review

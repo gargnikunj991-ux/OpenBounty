@@ -113,4 +113,31 @@ class UserRepositoryTest {
             entityManager.flush();
         }).isInstanceOf(Exception.class);
     }
+
+    @Test
+    @DisplayName("findByIdForUpdate returns user with pessimistic write lock")
+    void testFindByIdForUpdate() {
+        Optional<User> lockedUser = userRepository.findByIdForUpdate(devUser.getId());
+
+        assertThat(lockedUser).isPresent();
+        assertThat(lockedUser.get().getEmail()).isEqualTo("alice@openbounty.dev");
+        assertThat(lockedUser.get().getReputationScore()).isEqualTo(100);
+    }
+
+    @Test
+    @DisplayName("updateReputationScoreAtomically increments and protects zero floor")
+    void testUpdateReputationScoreAtomically() {
+        // Increment by +25
+        int updatedRows = userRepository.updateReputationScoreAtomically(devUser.getId(), 25);
+        entityManager.clear();
+        assertThat(updatedRows).isEqualTo(1);
+        User devAfterBonus = userRepository.findById(devUser.getId()).orElseThrow();
+        assertThat(devAfterBonus.getReputationScore()).isEqualTo(125);
+
+        // Deduct by -200 (score is 125, should clamp at 0)
+        userRepository.updateReputationScoreAtomically(devUser.getId(), -200);
+        entityManager.clear();
+        User devAfterFloor = userRepository.findById(devUser.getId()).orElseThrow();
+        assertThat(devAfterFloor.getReputationScore()).isEqualTo(0);
+    }
 }

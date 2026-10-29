@@ -189,8 +189,10 @@ public class MilestoneService {
             bountyRepository.save(bounty);
             finalBountyStatus = BountyStatus.COMPLETED;
 
-            // Award developer reputation points (+20 baseline)
-            User developer = proposal.getDeveloper();
+            // Award developer reputation points (+20 baseline) with pessimistic lock to prevent lost update race conditions
+            User developer = userRepository.findByIdForUpdate(proposal.getDeveloper().getId())
+                    .or(() -> userRepository.findById(proposal.getDeveloper().getId()))
+                    .orElse(proposal.getDeveloper());
             developer.setReputationScore(developer.getReputationScore() + 20);
             userRepository.save(developer);
 
