@@ -63,7 +63,8 @@ public class MilestoneService {
     public MilestoneResponse submitDeliverable(Long milestoneId, MilestoneSubmitRequest request, UserPrincipal currentUser) {
         log.info("Deliverable submission requested for milestone ID: {} by user ID: {}", milestoneId, currentUser.getId());
 
-        Milestone milestone = milestoneRepository.findWithDetailsById(milestoneId)
+        // Acquire pessimistic write lock to serialize concurrent submissions and eliminate lost updates
+        Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
         Proposal proposal = milestone.getProposal();

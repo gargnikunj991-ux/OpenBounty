@@ -179,7 +179,7 @@ class MilestoneServiceTest {
                 .notes("PR ready for review")
                 .build();
 
-        when(milestoneRepository.findWithDetailsById(301L)).thenReturn(Optional.of(milestone1));
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
         when(milestoneRepository.findByProposalIdOrderByIdAsc(201L)).thenReturn(List.of(milestone1, milestone2));
         when(milestoneRepository.save(any(Milestone.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -202,7 +202,7 @@ class MilestoneServiceTest {
                 .deliverableUrl("https://github.com/attacker/exploit/pull/1")
                 .build();
 
-        when(milestoneRepository.findWithDetailsById(301L)).thenReturn(Optional.of(milestone1));
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
 
         assertThatThrownBy(() -> milestoneService.submitDeliverable(301L, request, attackerDevPrincipal))
                 .isInstanceOf(AccessDeniedException.class)
@@ -219,7 +219,7 @@ class MilestoneServiceTest {
                 .build();
 
         // Milestone 1 is still PENDING
-        when(milestoneRepository.findWithDetailsById(302L)).thenReturn(Optional.of(milestone2));
+        when(milestoneRepository.findByIdForUpdate(302L)).thenReturn(Optional.of(milestone2));
         when(milestoneRepository.findByProposalIdOrderByIdAsc(201L)).thenReturn(List.of(milestone1, milestone2));
 
         assertThatThrownBy(() -> milestoneService.submitDeliverable(302L, request, devPrincipal))
@@ -238,7 +238,7 @@ class MilestoneServiceTest {
                 .deliverableUrl("https://github.com/alex-dev/openbounty/pull/1")
                 .build();
 
-        when(milestoneRepository.findWithDetailsById(301L)).thenReturn(Optional.of(milestone1));
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
 
         assertThatThrownBy(() -> milestoneService.submitDeliverable(301L, request, devPrincipal))
                 .isInstanceOf(InvalidStateTransitionException.class);
@@ -255,7 +255,7 @@ class MilestoneServiceTest {
                 .deliverableUrl("https://github.com/alex-dev/openbounty/pull/1")
                 .build();
 
-        when(milestoneRepository.findWithDetailsById(301L)).thenReturn(Optional.of(milestone1));
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
 
         assertThatThrownBy(() -> milestoneService.submitDeliverable(301L, request, devPrincipal))
                 .isInstanceOf(BadRequestException.class)
