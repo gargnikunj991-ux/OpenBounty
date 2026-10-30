@@ -120,6 +120,17 @@ class MilestoneRepositoryTest {
     }
 
     @Test
+    @DisplayName("findByIdForUpdate acquires pessimistic lock and eagerly loads details")
+    void testFindByIdForUpdate() {
+        Optional<Milestone> lockedMilestone = milestoneRepository.findByIdForUpdate(m2.getId());
+
+        assertThat(lockedMilestone).isPresent();
+        assertThat(lockedMilestone.get().getProposal()).isNotNull();
+        assertThat(lockedMilestone.get().getProposal().getBounty().getTitle()).contains("Solana Anchor");
+        assertThat(lockedMilestone.get().getProposal().getDeveloper().getName()).isEqualTo("Dev Charlie");
+    }
+
+    @Test
     @DisplayName("countByProposalId returns total milestone count")
     void testCountByProposalId() {
         assertThat(milestoneRepository.countByProposalId(proposal.getId())).isEqualTo(2L);

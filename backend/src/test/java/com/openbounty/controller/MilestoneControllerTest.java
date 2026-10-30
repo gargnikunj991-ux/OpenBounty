@@ -27,9 +27,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -243,6 +249,58 @@ class MilestoneControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Validation Failed"));
+    }
+
+    @Test
+    @DisplayName("POST /api/milestones/{id}/submit Concurrency Race Condition — 2 concurrent submissions on same milestone results in 1 Success and 1 Conflict")
+    void submitDeliverable_ConcurrencyRaceCondition() throws Exception {
+        int numberOfThreads = 2;
+        ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch finishLatch = new CountDownLatch(numberOfThreads);
+
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger conflictCount = new AtomicInteger(0);
+
+        MilestoneSubmitRequest request = MilestoneSubmitRequest.builder()
+                .deliverableUrl("https://github.com/alex-dev/openbounty-security/pull/1")
+                .notes("PR deliverable")
+                .build();
+        String requestJson = objectMapper.writeValueAsString(request);
+
+        for (int i = 0; i < numberOfThreads; i++) {
+            executor.submit(() -> {
+                try {
+                    startLatch.await();
+                    MvcResult result = mockMvc.perform(post("/api/milestones/" + milestone1.getId() + "/submit")
+                                    .header("Authorization", "Bearer " + devToken)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestJson))
+                            .andReturn();
+                    int httpStatus = result.getResponse().getStatus();
+                    if (httpStatus == 200) {
+                        successCount.incrementAndGet();
+                    } else if (httpStatus == 409) {
+                        conflictCount.incrementAndGet();
+                    }
+                } catch (Exception e) {
+                    // unexpected error
+                } finally {
+                    finishLatch.countDown();
+                }
+            });
+        }
+
+        startLatch.countDown();
+        boolean completed = finishLatch.await(10, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertThat(completed).isTrue();
+        assertThat(successCount.get()).isEqualTo(1);
+        assertThat(conflictCount.get()).isEqualTo(1);
+
+        Milestone submittedMilestone = milestoneRepository.findById(milestone1.getId()).orElseThrow();
+        assertThat(submittedMilestone.getStatus()).isEqualTo(MilestoneStatus.SUBMITTED);
     }
 
     // =========================================================================
