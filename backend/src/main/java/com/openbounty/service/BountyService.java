@@ -11,6 +11,7 @@ import com.openbounty.enums.ProposalStatus;
 import com.openbounty.enums.Role;
 import com.openbounty.exception.AccessDeniedException;
 import com.openbounty.exception.BadRequestException;
+import com.openbounty.exception.DuplicateResourceException;
 import com.openbounty.exception.InvalidStateTransitionException;
 import com.openbounty.exception.ResourceNotFoundException;
 import com.openbounty.model.Bounty;
@@ -27,6 +28,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -61,11 +63,30 @@ public class BountyService {
         validateNoMaliciousContent(request.getTitle(), "title");
         validateNoMaliciousContent(request.getDescription(), "description");
 
-        User client = userRepository.findById(currentUser.getId())
+        // Acquire pessimistic write lock on client row to serialize concurrent creation requests
+        User client = userRepository.findByIdForUpdate(currentUser.getId())
+                .or(() -> userRepository.findById(currentUser.getId()))
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", currentUser.getId()));
 
         if (client.getRole() != Role.ROLE_CLIENT && client.getRole() != Role.ROLE_ADMIN) {
             throw new AccessDeniedException("Only clients can create technical bounties.");
+        }
+
+        // Double-submission guard: Reject duplicate active bounties with identical title by same client
+        List<BountyStatus> activeStatuses = List.of(
+                BountyStatus.OPEN,
+                BountyStatus.IN_REVIEW,
+                BountyStatus.ASSIGNED,
+                BountyStatus.IN_PROGRESS
+        );
+        if (bountyRepository.existsByClientIdAndTitleIgnoreCaseAndStatusIn(
+                client.getId(), request.getTitle().trim(), activeStatuses)) {
+            log.warn("Duplicate bounty creation rejected: Client ID {} already has an active bounty with title '{}'",
+                    client.getId(), request.getTitle().trim());
+            throw new DuplicateResourceException(
+                    "You already have an active bounty with the title: '" + request.getTitle().trim() +
+                    "'. Please complete, cancel, or modify the existing bounty before creating a duplicate."
+            );
         }
 
         Bounty bounty = Bounty.builder()

@@ -58,7 +58,9 @@ public class ProposalService {
         log.info("User '{}' (ID: {}) submitting proposal for bounty ID: {}",
                 currentUser.getEmail(), currentUser.getId(), bountyId);
 
-        User developer = userRepository.findById(currentUser.getId())
+        // Acquire pessimistic write lock on developer row to serialize concurrent proposal submissions and eliminate double-bidding
+        User developer = userRepository.findByIdForUpdate(currentUser.getId())
+                .or(() -> userRepository.findById(currentUser.getId()))
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", currentUser.getId()));
 
         if (developer.getRole() != Role.ROLE_DEVELOPER && developer.getRole() != Role.ROLE_ADMIN) {

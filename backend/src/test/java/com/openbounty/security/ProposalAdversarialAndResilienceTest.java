@@ -395,4 +395,66 @@ public class ProposalAdversarialAndResilienceTest {
         Proposal refreshed = proposalRepository.findById(victimProposal.getId()).orElseThrow();
         assertThat(refreshed.getStatus()).isEqualTo(ProposalStatus.PENDING);
     }
+
+    // =========================================================================
+    // ATTACK 6: High-Concurrency Proposal Double-Submission Race Condition
+    // =========================================================================
+    @Test
+    @DisplayName("ATTACK 6: High-Concurrency Double-Click Proposal Submission — 2 concurrent bids by same developer results in 1 Success (201) and 1 Conflict (409)")
+    void attack_concurrentProposalDoubleSubmission_ShouldResultInExactlyOneSuccessAndOneConflict() throws Exception {
+        int numberOfThreads = 2;
+        ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch finishLatch = new CountDownLatch(numberOfThreads);
+
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger conflictCount = new AtomicInteger(0);
+
+        ProposalCreateRequest request = ProposalCreateRequest.builder()
+                .approachDescription("High performance concurrency proposal architecture.")
+                .proposedAmount(new BigDecimal("1200.00"))
+                .estimatedDays(7)
+                .milestones(List.of(
+                        MilestoneCreateRequest.builder()
+                                .title("Initial scaffolding")
+                                .description("Phase 1 deliverables")
+                                .build()
+                ))
+                .build();
+        String requestJson = objectMapper.writeValueAsString(request);
+
+        for (int i = 0; i < numberOfThreads; i++) {
+            executor.submit(() -> {
+                try {
+                    startLatch.await();
+                    MvcResult result = mockMvc.perform(post("/api/bounties/" + activeBounty.getId() + "/proposals")
+                                    .header("Authorization", "Bearer " + devToken1)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestJson))
+                            .andReturn();
+                    int httpStatus = result.getResponse().getStatus();
+                    if (httpStatus == 201) {
+                        successCount.incrementAndGet();
+                    } else if (httpStatus == 409) {
+                        conflictCount.incrementAndGet();
+                    }
+                } catch (Exception e) {
+                    // unexpected error
+                } finally {
+                    finishLatch.countDown();
+                }
+            });
+        }
+
+        startLatch.countDown();
+        boolean completed = finishLatch.await(10, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertThat(completed).isTrue();
+        assertThat(successCount.get()).as("Exactly 1 concurrent proposal submission should succeed").isEqualTo(1);
+        assertThat(conflictCount.get()).as("The competing duplicate proposal submission should be rejected with 409 Conflict").isEqualTo(1);
+
+        List<Proposal> proposals = proposalRepository.findByBountyId(activeBounty.getId());
+        assertThat(proposals).as("Database must contain exactly 1 proposal from devUser1").hasSize(1);
+    }
 }

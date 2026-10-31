@@ -23,9 +23,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -139,6 +145,89 @@ class BountyControllerTest {
                 .andExpect(jsonPath("$.client.id").value(clientUser.getId()))
                 .andExpect(jsonPath("$.client.name").value("Acme Corp"));
 
+        assertThat(bountyRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("POST /api/bounties rejects duplicate active bounty by same client with 409 Conflict")
+    void testCreateBounty_DuplicateActiveTitle_Returns409Conflict() throws Exception {
+        BountyCreateRequest request = BountyCreateRequest.builder()
+                .title("Build Spring Security 6 Stateless JWT Module")
+                .description("Detailed requirement description for building stateless JWT authentication.")
+                .category(BountyCategory.BACKEND_API)
+                .rewardAmount(new BigDecimal("1500.00"))
+                .deadline(LocalDate.now().plusDays(15))
+                .build();
+
+        // First creation succeeds
+        mockMvc.perform(post("/api/bounties")
+                        .header("Authorization", "Bearer " + clientToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+
+        // Duplicate submission with identical title by same client rejected
+        mockMvc.perform(post("/api/bounties")
+                        .header("Authorization", "Bearer " + clientToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Resource Conflict"))
+                .andExpect(jsonPath("$.detail", containsString("You already have an active bounty with the title")));
+
+        assertThat(bountyRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("POST /api/bounties Concurrency Race Condition — 2 concurrent submissions with same payload results in 1 Success and 1 Conflict")
+    void testCreateBounty_ConcurrencyDoubleSubmission() throws Exception {
+        int numberOfThreads = 2;
+        ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch finishLatch = new CountDownLatch(numberOfThreads);
+
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger conflictCount = new AtomicInteger(0);
+
+        BountyCreateRequest request = BountyCreateRequest.builder()
+                .title("Concurrent Race Condition Bounty")
+                .description("Testing concurrency double submission defense.")
+                .category(BountyCategory.SECURITY_AUDIT)
+                .rewardAmount(new BigDecimal("2000.00"))
+                .deadline(LocalDate.now().plusDays(20))
+                .build();
+        String requestJson = objectMapper.writeValueAsString(request);
+
+        for (int i = 0; i < numberOfThreads; i++) {
+            executor.submit(() -> {
+                try {
+                    startLatch.await();
+                    MvcResult result = mockMvc.perform(post("/api/bounties")
+                                    .header("Authorization", "Bearer " + clientToken)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestJson))
+                            .andReturn();
+                    int httpStatus = result.getResponse().getStatus();
+                    if (httpStatus == 201) {
+                        successCount.incrementAndGet();
+                    } else if (httpStatus == 409) {
+                        conflictCount.incrementAndGet();
+                    }
+                } catch (Exception e) {
+                    // unexpected error
+                } finally {
+                    finishLatch.countDown();
+                }
+            });
+        }
+
+        startLatch.countDown();
+        boolean completed = finishLatch.await(10, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertThat(completed).isTrue();
+        assertThat(successCount.get()).as("Exactly 1 concurrent bounty creation should succeed").isEqualTo(1);
+        assertThat(conflictCount.get()).as("The racing duplicate bounty creation should be rejected with 409").isEqualTo(1);
         assertThat(bountyRepository.findAll()).hasSize(1);
     }
 
