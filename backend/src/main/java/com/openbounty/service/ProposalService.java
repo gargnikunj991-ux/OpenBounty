@@ -250,12 +250,27 @@ public class ProposalService {
         Bounty bounty = proposal.getBounty();
         verifyBountyOwnership(bounty, currentUser, "reject proposals for");
 
-        if (proposal.getStatus() != ProposalStatus.PENDING) {
-            throw new InvalidStateTransitionException("Proposal", proposal.getStatus(), ProposalStatus.REJECTED);
+        // STEP 1: Lock the bounty row first (SELECT ... FOR UPDATE) to serialize with concurrent accept/cancel operations
+        Bounty lockedBounty = bountyRepository.findByIdForUpdate(bounty.getId())
+                .or(() -> bountyRepository.findById(bounty.getId()))
+                .orElse(bounty);
+
+        // STEP 2: Proposal state guard (checks DB directly to bypass 1st-level cache after acquiring lock)
+        ProposalStatus proposalStatus = proposalRepository.findStatusById(proposal.getId());
+        if (proposalStatus == null) {
+            proposalStatus = proposal.getStatus();
+        }
+        if (proposalStatus != ProposalStatus.PENDING) {
+            throw new InvalidStateTransitionException("Proposal", proposalStatus, ProposalStatus.REJECTED);
         }
 
-        if (bounty.getStatus() == BountyStatus.COMPLETED || bounty.getStatus() == BountyStatus.CANCELLED) {
-            throw new InvalidStateTransitionException("Cannot reject proposals on a " + bounty.getStatus() + " bounty.");
+        // STEP 3: Bounty state guard (proposals can only be manually rejected on OPEN or IN_REVIEW bounties)
+        BountyStatus bountyStatus = bountyRepository.findStatusById(bounty.getId());
+        if (bountyStatus == null) {
+            bountyStatus = lockedBounty.getStatus();
+        }
+        if (bountyStatus != BountyStatus.OPEN && bountyStatus != BountyStatus.IN_REVIEW) {
+            throw new InvalidStateTransitionException("Cannot reject proposals on a " + bountyStatus + " bounty.");
         }
 
         proposal.setStatus(ProposalStatus.REJECTED);

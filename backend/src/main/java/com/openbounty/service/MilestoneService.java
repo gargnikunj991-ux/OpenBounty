@@ -165,14 +165,25 @@ public class MilestoneService {
             throw new AccessDeniedException("Only the bounty client owner can approve deliverables.");
         }
 
-        // 2. State Guard: Must be SUBMITTED
+        // 2. Bounty State Guard: Bounty must be ASSIGNED or IN_PROGRESS
+        BountyStatus currentBountyStatus = bountyRepository.findStatusById(bounty.getId());
+        if (currentBountyStatus == null) {
+            currentBountyStatus = bounty.getStatus();
+        }
+        if (currentBountyStatus != BountyStatus.ASSIGNED && currentBountyStatus != BountyStatus.IN_PROGRESS) {
+            log.warn("Approval rejected: Bounty ID {} is in state '{}' (expected ASSIGNED or IN_PROGRESS)",
+                    bounty.getId(), currentBountyStatus);
+            throw new InvalidStateTransitionException("Cannot approve deliverables for a bounty in status: " + currentBountyStatus);
+        }
+
+        // 3. State Guard: Must be SUBMITTED
         if (milestone.getStatus() != MilestoneStatus.SUBMITTED) {
             log.warn("Approval rejected: Milestone ID {} is in state '{}' (expected SUBMITTED)",
                     milestoneId, milestone.getStatus());
             throw new InvalidStateTransitionException("Milestone", milestone.getStatus(), MilestoneStatus.APPROVED);
         }
 
-        // 3. Update milestone to APPROVED
+        // 4. Update milestone to APPROVED
         milestone.setStatus(MilestoneStatus.APPROVED);
         milestone.setApprovedAt(LocalDateTime.now());
         milestoneRepository.save(milestone);
@@ -238,6 +249,17 @@ public class MilestoneService {
             log.warn("IDOR attempt: User ID {} tried to request revision on milestone ID {} owned by client ID {}",
                     currentUser.getId(), milestoneId, bounty.getClient().getId());
             throw new AccessDeniedException("Only the bounty client owner can request milestone revisions.");
+        }
+
+        // Bounty State Guard: Bounty must be ASSIGNED or IN_PROGRESS
+        BountyStatus currentBountyStatus = bountyRepository.findStatusById(bounty.getId());
+        if (currentBountyStatus == null) {
+            currentBountyStatus = bounty.getStatus();
+        }
+        if (currentBountyStatus != BountyStatus.ASSIGNED && currentBountyStatus != BountyStatus.IN_PROGRESS) {
+            log.warn("Revision request rejected: Bounty ID {} is in state '{}' (expected ASSIGNED or IN_PROGRESS)",
+                    bounty.getId(), currentBountyStatus);
+            throw new InvalidStateTransitionException("Cannot request revisions for a bounty in status: " + currentBountyStatus);
         }
 
         if (milestone.getStatus() != MilestoneStatus.SUBMITTED) {

@@ -366,4 +366,60 @@ class MilestoneServiceTest {
 
         verify(milestoneRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("Approve Milestone Exploit Blocked: Cannot approve milestone when bounty is CANCELLED")
+    void approveMilestone_ThrowsException_WhenBountyIsCancelled() {
+        milestone1.setStatus(MilestoneStatus.SUBMITTED);
+        bounty.setStatus(BountyStatus.CANCELLED);
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
+
+        assertThatThrownBy(() -> milestoneService.approveMilestone(301L, clientPrincipal))
+                .isInstanceOf(InvalidStateTransitionException.class)
+                .hasMessageContaining("Cannot approve deliverables for a bounty in status: CANCELLED");
+
+        verify(milestoneRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Approve Milestone Exploit Blocked: Cannot approve milestone when bounty is COMPLETED")
+    void approveMilestone_ThrowsException_WhenBountyIsCompleted() {
+        milestone1.setStatus(MilestoneStatus.SUBMITTED);
+        bounty.setStatus(BountyStatus.COMPLETED);
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
+
+        assertThatThrownBy(() -> milestoneService.approveMilestone(301L, clientPrincipal))
+                .isInstanceOf(InvalidStateTransitionException.class)
+                .hasMessageContaining("Cannot approve deliverables for a bounty in status: COMPLETED");
+
+        verify(milestoneRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Request Revision Exploit Blocked: Cannot request revisions when bounty is CANCELLED")
+    void requestRevision_ThrowsException_WhenBountyIsCancelled() {
+        milestone1.setStatus(MilestoneStatus.SUBMITTED);
+        bounty.setStatus(BountyStatus.CANCELLED);
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
+
+        assertThatThrownBy(() -> milestoneService.requestRevision(301L, "Fix code", clientPrincipal))
+                .isInstanceOf(InvalidStateTransitionException.class)
+                .hasMessageContaining("Cannot request revisions for a bounty in status: CANCELLED");
+
+        verify(milestoneRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Request Revision Exploit Blocked: Cannot request revisions when bounty is COMPLETED")
+    void requestRevision_ThrowsException_WhenBountyIsCompleted() {
+        milestone1.setStatus(MilestoneStatus.SUBMITTED);
+        bounty.setStatus(BountyStatus.COMPLETED);
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
+
+        assertThatThrownBy(() -> milestoneService.requestRevision(301L, "Fix code", clientPrincipal))
+                .isInstanceOf(InvalidStateTransitionException.class)
+                .hasMessageContaining("Cannot request revisions for a bounty in status: COMPLETED");
+
+        verify(milestoneRepository, never()).save(any());
+    }
 }

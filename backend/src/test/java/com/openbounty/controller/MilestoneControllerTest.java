@@ -380,6 +380,22 @@ class MilestoneControllerTest {
                 .andExpect(jsonPath("$.title").value("Invalid State Transition"));
     }
 
+    @Test
+    @DisplayName("PATCH /api/milestones/{id}/approve Exploit Blocked — Cannot approve deliverable on CANCELLED bounty")
+    void approveMilestone_CancelledBountyReturnsConflict() throws Exception {
+        milestone1.setStatus(MilestoneStatus.SUBMITTED);
+        milestoneRepository.save(milestone1);
+
+        assignedBounty.setStatus(BountyStatus.CANCELLED);
+        bountyRepository.save(assignedBounty);
+
+        mockMvc.perform(patch("/api/milestones/" + milestone1.getId() + "/approve")
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Invalid State Transition"))
+                .andExpect(jsonPath("$.detail", containsString("Cannot approve deliverables for a bounty in status: CANCELLED")));
+    }
+
     // =========================================================================
     // REQUEST REVISION TESTS
     // =========================================================================
@@ -400,6 +416,24 @@ class MilestoneControllerTest {
 
         Milestone updatedMilestone = milestoneRepository.findById(milestone1.getId()).orElseThrow();
         assertThat(updatedMilestone.getStatus()).isEqualTo(MilestoneStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("POST /api/milestones/{id}/request-revision Exploit Blocked — Cannot request revision on CANCELLED bounty")
+    void requestRevision_CancelledBountyReturnsConflict() throws Exception {
+        milestone1.setStatus(MilestoneStatus.SUBMITTED);
+        milestone1.setDeliverableUrl("https://github.com/alex-dev/openbounty-security/pull/1");
+        milestoneRepository.save(milestone1);
+
+        assignedBounty.setStatus(BountyStatus.CANCELLED);
+        bountyRepository.save(assignedBounty);
+
+        mockMvc.perform(post("/api/milestones/" + milestone1.getId() + "/request-revision")
+                        .header("Authorization", "Bearer " + clientToken)
+                        .param("feedbackNotes", "Fix revisions"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Invalid State Transition"))
+                .andExpect(jsonPath("$.detail", containsString("Cannot request revisions for a bounty in status: CANCELLED")));
     }
 
     // =========================================================================
