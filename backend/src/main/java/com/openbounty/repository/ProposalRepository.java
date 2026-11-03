@@ -42,9 +42,10 @@ public interface ProposalRepository extends JpaRepository<Proposal, Long> {
 
     /**
      * Retrieve all proposals submitted for a bounty (unpaginated).
+     * Eagerly fetches developer profile and structured milestones to eliminate N+1 queries.
      * Backed by index 'idx_proposals_bounty_id'.
      */
-    @EntityGraph(attributePaths = {"developer"})
+    @EntityGraph(attributePaths = {"developer", "milestones"})
     List<Proposal> findByBountyId(Long bountyId);
 
     /**

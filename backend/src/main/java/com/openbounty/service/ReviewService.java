@@ -57,6 +57,8 @@ public class ReviewService {
         log.info("Review creation requested by user ID: {} for bounty ID: {}, reviewee ID: {}",
                 currentUser.getId(), request.getBountyId(), request.getRevieweeId());
 
+        validateNoMaliciousContent(request.getFeedback(), "feedback");
+
         // 1. Validate Bounty existence
         Bounty bounty = bountyRepository.findById(request.getBountyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Bounty", "id", request.getBountyId()));
@@ -176,6 +178,15 @@ public class ReviewService {
             throw new ResourceNotFoundException("User", "id", userId);
         }
         return reviewRepository.calculateAverageRatingForUser(userId);
+    }
+
+    private void validateNoMaliciousContent(String input, String fieldName) {
+        if (input == null) return;
+        String lower = input.toLowerCase();
+        if (lower.contains("<script") || lower.contains("javascript:") || lower.contains("onerror=") || lower.contains("onload=")) {
+            log.warn("Malicious script payload detected in review field '{}': {}", fieldName, input);
+            throw new BadRequestException("Malicious content detected in " + fieldName + ". HTML script tags and javascript handlers are not permitted.");
+        }
     }
 
     /**
