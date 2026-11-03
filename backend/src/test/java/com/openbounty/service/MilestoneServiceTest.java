@@ -179,7 +179,7 @@ class MilestoneServiceTest {
                 .notes("PR ready for review")
                 .build();
 
-        when(milestoneRepository.findWithDetailsById(301L)).thenReturn(Optional.of(milestone1));
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
         when(milestoneRepository.findByProposalIdOrderByIdAsc(201L)).thenReturn(List.of(milestone1, milestone2));
         when(milestoneRepository.save(any(Milestone.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -202,7 +202,7 @@ class MilestoneServiceTest {
                 .deliverableUrl("https://github.com/attacker/exploit/pull/1")
                 .build();
 
-        when(milestoneRepository.findWithDetailsById(301L)).thenReturn(Optional.of(milestone1));
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
 
         assertThatThrownBy(() -> milestoneService.submitDeliverable(301L, request, attackerDevPrincipal))
                 .isInstanceOf(AccessDeniedException.class)
@@ -219,7 +219,7 @@ class MilestoneServiceTest {
                 .build();
 
         // Milestone 1 is still PENDING
-        when(milestoneRepository.findWithDetailsById(302L)).thenReturn(Optional.of(milestone2));
+        when(milestoneRepository.findByIdForUpdate(302L)).thenReturn(Optional.of(milestone2));
         when(milestoneRepository.findByProposalIdOrderByIdAsc(201L)).thenReturn(List.of(milestone1, milestone2));
 
         assertThatThrownBy(() -> milestoneService.submitDeliverable(302L, request, devPrincipal))
@@ -238,7 +238,7 @@ class MilestoneServiceTest {
                 .deliverableUrl("https://github.com/alex-dev/openbounty/pull/1")
                 .build();
 
-        when(milestoneRepository.findWithDetailsById(301L)).thenReturn(Optional.of(milestone1));
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
 
         assertThatThrownBy(() -> milestoneService.submitDeliverable(301L, request, devPrincipal))
                 .isInstanceOf(InvalidStateTransitionException.class);
@@ -255,7 +255,7 @@ class MilestoneServiceTest {
                 .deliverableUrl("https://github.com/alex-dev/openbounty/pull/1")
                 .build();
 
-        when(milestoneRepository.findWithDetailsById(301L)).thenReturn(Optional.of(milestone1));
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
 
         assertThatThrownBy(() -> milestoneService.submitDeliverable(301L, request, devPrincipal))
                 .isInstanceOf(BadRequestException.class)
@@ -363,6 +363,62 @@ class MilestoneServiceTest {
 
         assertThatThrownBy(() -> milestoneService.requestRevision(301L, "Fix tests", attackerClientPrincipal))
                 .isInstanceOf(AccessDeniedException.class);
+
+        verify(milestoneRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Approve Milestone Exploit Blocked: Cannot approve milestone when bounty is CANCELLED")
+    void approveMilestone_ThrowsException_WhenBountyIsCancelled() {
+        milestone1.setStatus(MilestoneStatus.SUBMITTED);
+        bounty.setStatus(BountyStatus.CANCELLED);
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
+
+        assertThatThrownBy(() -> milestoneService.approveMilestone(301L, clientPrincipal))
+                .isInstanceOf(InvalidStateTransitionException.class)
+                .hasMessageContaining("Cannot approve deliverables for a bounty in status: CANCELLED");
+
+        verify(milestoneRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Approve Milestone Exploit Blocked: Cannot approve milestone when bounty is COMPLETED")
+    void approveMilestone_ThrowsException_WhenBountyIsCompleted() {
+        milestone1.setStatus(MilestoneStatus.SUBMITTED);
+        bounty.setStatus(BountyStatus.COMPLETED);
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
+
+        assertThatThrownBy(() -> milestoneService.approveMilestone(301L, clientPrincipal))
+                .isInstanceOf(InvalidStateTransitionException.class)
+                .hasMessageContaining("Cannot approve deliverables for a bounty in status: COMPLETED");
+
+        verify(milestoneRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Request Revision Exploit Blocked: Cannot request revisions when bounty is CANCELLED")
+    void requestRevision_ThrowsException_WhenBountyIsCancelled() {
+        milestone1.setStatus(MilestoneStatus.SUBMITTED);
+        bounty.setStatus(BountyStatus.CANCELLED);
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
+
+        assertThatThrownBy(() -> milestoneService.requestRevision(301L, "Fix code", clientPrincipal))
+                .isInstanceOf(InvalidStateTransitionException.class)
+                .hasMessageContaining("Cannot request revisions for a bounty in status: CANCELLED");
+
+        verify(milestoneRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Request Revision Exploit Blocked: Cannot request revisions when bounty is COMPLETED")
+    void requestRevision_ThrowsException_WhenBountyIsCompleted() {
+        milestone1.setStatus(MilestoneStatus.SUBMITTED);
+        bounty.setStatus(BountyStatus.COMPLETED);
+        when(milestoneRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(milestone1));
+
+        assertThatThrownBy(() -> milestoneService.requestRevision(301L, "Fix code", clientPrincipal))
+                .isInstanceOf(InvalidStateTransitionException.class)
+                .hasMessageContaining("Cannot request revisions for a bounty in status: COMPLETED");
 
         verify(milestoneRepository, never()).save(any());
     }

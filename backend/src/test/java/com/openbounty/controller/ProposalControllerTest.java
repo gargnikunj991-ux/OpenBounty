@@ -371,4 +371,43 @@ class ProposalControllerTest {
         Proposal updatedP1 = proposalRepository.findById(p1.getId()).orElseThrow();
         assertThat(updatedP1.getStatus()).isEqualTo(ProposalStatus.REJECTED);
     }
+
+    @Test
+    @DisplayName("PATCH /api/proposals/{id}/reject: cannot reject proposal on ASSIGNED bounty")
+    void testRejectProposal_CannotRejectOnAssignedBounty() throws Exception {
+        openBounty.setStatus(BountyStatus.ASSIGNED);
+        bountyRepository.save(openBounty);
+
+        Proposal p1 = proposalRepository.save(Proposal.builder()
+                .bounty(openBounty)
+                .developer(devUser1)
+                .approachDescription("Proposal to reject on assigned bounty")
+                .proposedAmount(new BigDecimal("1400.00"))
+                .estimatedDays(7)
+                .status(ProposalStatus.PENDING)
+                .build());
+
+        mockMvc.perform(patch("/api/proposals/" + p1.getId() + "/reject")
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Invalid State Transition"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/proposals/{id}/reject: cannot reject already ACCEPTED proposal")
+    void testRejectProposal_CannotRejectAlreadyAcceptedProposal() throws Exception {
+        Proposal p1 = proposalRepository.save(Proposal.builder()
+                .bounty(openBounty)
+                .developer(devUser1)
+                .approachDescription("Proposal already accepted")
+                .proposedAmount(new BigDecimal("1400.00"))
+                .estimatedDays(7)
+                .status(ProposalStatus.ACCEPTED)
+                .build());
+
+        mockMvc.perform(patch("/api/proposals/" + p1.getId() + "/reject")
+                        .header("Authorization", "Bearer " + clientToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Invalid State Transition"));
+    }
 }

@@ -425,4 +425,30 @@ class ProposalServiceTest {
 
         verify(proposalRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("rejectProposal: should throw InvalidStateTransitionException when bounty is already ASSIGNED")
+    void rejectProposal_ThrowsInvalidStateTransition_WhenBountyAlreadyAssigned() {
+        sampleBounty.setStatus(BountyStatus.ASSIGNED);
+        when(proposalRepository.findWithDetailsById(sampleProposal.getId())).thenReturn(Optional.of(sampleProposal));
+
+        assertThatThrownBy(() -> proposalService.rejectProposal(sampleProposal.getId(), clientPrincipal))
+                .isInstanceOf(InvalidStateTransitionException.class)
+                .hasMessageContaining("Cannot reject proposals on a ASSIGNED bounty");
+
+        verify(proposalRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("rejectProposal: should throw InvalidStateTransitionException when bounty is CANCELLED")
+    void rejectProposal_ThrowsInvalidStateTransition_WhenBountyIsCancelled() {
+        sampleBounty.setStatus(BountyStatus.CANCELLED);
+        when(proposalRepository.findWithDetailsById(sampleProposal.getId())).thenReturn(Optional.of(sampleProposal));
+
+        assertThatThrownBy(() -> proposalService.rejectProposal(sampleProposal.getId(), clientPrincipal))
+                .isInstanceOf(InvalidStateTransitionException.class)
+                .hasMessageContaining("Cannot reject proposals on a CANCELLED bounty");
+
+        verify(proposalRepository, never()).save(any());
+    }
 }

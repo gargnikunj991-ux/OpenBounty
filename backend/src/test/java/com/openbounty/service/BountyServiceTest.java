@@ -9,6 +9,7 @@ import com.openbounty.enums.BountyCategory;
 import com.openbounty.enums.BountyStatus;
 import com.openbounty.enums.Role;
 import com.openbounty.exception.AccessDeniedException;
+import com.openbounty.exception.DuplicateResourceException;
 import com.openbounty.exception.InvalidStateTransitionException;
 import com.openbounty.exception.ResourceNotFoundException;
 import com.openbounty.model.Bounty;
@@ -138,6 +139,28 @@ class BountyServiceTest {
         assertThat(response.getAssignedDeveloper()).isNull();
 
         verify(bountyRepository).save(any(Bounty.class));
+    }
+
+    @Test
+    @DisplayName("createBounty throws DuplicateResourceException when client already has an active bounty with same title")
+    void testCreateBounty_DuplicateActiveTitle() {
+        BountyCreateRequest request = BountyCreateRequest.builder()
+                .title("Build Spring Security 6 JWT Module")
+                .description("Detailed requirement description.")
+                .category(BountyCategory.BACKEND_API)
+                .rewardAmount(new BigDecimal("1500.00"))
+                .deadline(LocalDate.now().plusDays(30))
+                .build();
+
+        when(userRepository.findById(10L)).thenReturn(Optional.of(clientUser));
+        when(bountyRepository.existsByClientIdAndTitleIgnoreCaseAndStatusIn(eq(10L), eq("Build Spring Security 6 JWT Module"), any()))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> bountyService.createBounty(request, clientPrincipal))
+                .isInstanceOf(DuplicateResourceException.class)
+                .hasMessageContaining("You already have an active bounty with the title");
+
+        verify(bountyRepository, never()).save(any());
     }
 
     @Test

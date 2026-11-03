@@ -47,6 +47,16 @@ public interface BountyRepository extends JpaRepository<Bounty, Long>, JpaSpecif
     Optional<Bounty> findWithDetailsById(@Param("id") Long id);
 
     /**
+     * Check if an active bounty with the same title already exists for this client.
+     * Used by createBounty to eliminate double-submission and duplicate challenge creation.
+     */
+    boolean existsByClientIdAndTitleIgnoreCaseAndStatusIn(
+            Long clientId,
+            String title,
+            java.util.Collection<BountyStatus> statuses
+    );
+
+    /**
      * Paginated lookup of bounties filtered by lifecycle status.
      * Backed by index 'idx_bounties_status'.
      */

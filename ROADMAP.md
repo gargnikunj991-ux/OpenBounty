@@ -142,8 +142,8 @@ This document outlines the master engineering roadmap to transform **OpenBounty*
 
 ---
 
-## Phase 9: Reviews, Ratings & Algorithmic Reputation Engine 🚀
-* **Status**: In Queue
+## Phase 9: Reviews, Ratings & Algorithmic Reputation Engine ✅
+* **Status**: Completed
 * **Goal**: Build rating mechanics, SQL aggregations, and dynamic solver reputation scoring.
 * **Key Deliverables**:
   1. `ReviewService` & `ReviewController`.
