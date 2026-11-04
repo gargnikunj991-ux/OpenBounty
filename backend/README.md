@@ -1,4 +1,4 @@
-﻿# ☕ OpenBounty — Backend Service (Spring Boot 3.3 + Java 21)
+# ☕ OpenBounty — Backend Service (Spring Boot 3.3 + Java 21)
 
 This folder contains the core backend REST API service for OpenBounty, built with **Spring Boot 3.3**, **Java 21**, **Spring Data JPA**, and **PostgreSQL**.
 
@@ -36,7 +36,8 @@ DB_USERNAME=postgres
 DB_PASSWORD=postgres
 SERVER_PORT=8080
 JWT_SECRET=your_base64_or_hex_encoded_secret_key
-JWT_EXPIRATION_MS=86400000
+JWT_EXPIRATION_MS=600000
+JWT_REFRESH_EXPIRATION_MS=86400000
 ```
 
 ### 3. Build & Run
@@ -54,7 +55,7 @@ mvn spring-boot:run
 
 The API will be live at: `http://localhost:8080`
 - **Swagger UI**: `http://localhost:8080/swagger-ui.html`
-- **API Specs**: `http://localhost:8080/v3/api-docs`
+- **API Specs**: `http://localhost:8080/api-docs`
 - **Actuator Health**: `http://localhost:8080/actuator/health`
 
 ---
