@@ -153,6 +153,13 @@ This document provides the exhaustive API reference and contract for the **OpenB
 * **Access:** `ROLE_CLIENT`
 * **Headers:** `Authorization: Bearer <jwt_token>`
 
+#### Validation & Security Guards
+* `title`: Required, 5–200 characters. Sanitized against XSS (script tags and event handlers rejected with `400 Bad Request`).
+* `description`: Required, 10–5000 characters. Sanitized against XSS.
+* `category`: Valid `BountyCategory` enum.
+* `rewardAmount`: Must be > 0.
+* `deadline`: Must be a future date (`@FutureOrPresent`).
+
 #### Request Body
 ```json
 {
@@ -183,19 +190,6 @@ This document provides the exhaustive API reference and contract for the **OpenB
   "createdAt": "2026-08-31T21:10:00.000Z"
 }
 ```
-
----
-
-### 2.1 Create a Bounty
-* **Endpoint:** `POST /api/bounties`
-* **Access:** `ROLE_CLIENT` only
-* **Headers:** `Authorization: Bearer <jwt_token>`
-* **Validation & Security Guards:**
-  - `title`: Required, 5–200 characters. Sanitized against XSS (script tags and event handlers rejected with `400 Bad Request`).
-  - `description`: Required, 10–5000 characters. Sanitized against XSS.
-  - `category`: Valid `BountyCategory` enum.
-  - `rewardAmount`: Must be > 0.
-  - `deadline`: Must be a future date (`@FutureOrPresent`).
 
 ---
 

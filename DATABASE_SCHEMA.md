@@ -1,6 +1,6 @@
 # OpenBounty — Database Schema & Data Architecture Guide
 
-This document defines the physical relational schema, data dictionary, indexing strategies, and database optimization techniques for the **OpenBounty** platform running on **PostgreSQL 15+**.
+This document defines the physical relational schema, data dictionary, indexing strategies, and database optimization techniques for the **OpenBounty** platform running on **PostgreSQL 16**.
 
 ---
 
