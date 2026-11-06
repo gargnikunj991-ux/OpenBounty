@@ -68,7 +68,10 @@ public class MilestoneService {
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
         Proposal proposal = milestone.getProposal();
-        Bounty bounty = proposal.getBounty();
+        // Concurrency Guard: Lock associated Bounty row to serialize with concurrent cancellation and status updates
+        Bounty bounty = bountyRepository.findByIdForUpdate(proposal.getBounty().getId())
+                .or(() -> bountyRepository.findById(proposal.getBounty().getId()))
+                .orElse(proposal.getBounty());
 
         // 1. Proposal state check
         if (proposal.getStatus() != ProposalStatus.ACCEPTED) {
@@ -76,10 +79,15 @@ public class MilestoneService {
             throw new BadRequestException("Deliverables can only be submitted for accepted proposals.");
         }
 
-        // 2. Bounty state check
-        if (bounty.getStatus() != BountyStatus.ASSIGNED && bounty.getStatus() != BountyStatus.IN_PROGRESS) {
-            log.warn("Submission rejected: Bounty ID {} is in state '{}'", bounty.getId(), bounty.getStatus());
-            throw new BadRequestException("Deliverables cannot be submitted for a bounty in status: " + bounty.getStatus());
+        // 2. Bounty state check (bypasses 1st-level cache after acquiring lock to check true committed status)
+        BountyStatus currentBountyStatus = bountyRepository.findStatusById(bounty.getId());
+        if (currentBountyStatus == null) {
+            currentBountyStatus = bounty.getStatus();
+        }
+
+        if (currentBountyStatus != BountyStatus.ASSIGNED && currentBountyStatus != BountyStatus.IN_PROGRESS) {
+            log.warn("Submission rejected: Bounty ID {} is in state '{}'", bounty.getId(), currentBountyStatus);
+            throw new BadRequestException("Deliverables cannot be submitted for a bounty in status: " + currentBountyStatus);
         }
 
         // 3. IDOR Defense: Only the assigned developer can submit
@@ -152,7 +160,10 @@ public class MilestoneService {
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
         Proposal proposal = milestone.getProposal();
-        Bounty bounty = proposal.getBounty();
+        // Concurrency Guard: Lock associated Bounty row to serialize with concurrent cancellation and status updates
+        Bounty bounty = bountyRepository.findByIdForUpdate(proposal.getBounty().getId())
+                .or(() -> bountyRepository.findById(proposal.getBounty().getId()))
+                .orElse(proposal.getBounty());
 
         // 1. IDOR Defense: Only the bounty creator or admin can approve
         boolean isClientOwner = bounty.getClient().getId().equals(currentUser.getId());
@@ -239,7 +250,11 @@ public class MilestoneService {
         Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
-        Bounty bounty = milestone.getProposal().getBounty();
+        Proposal proposal = milestone.getProposal();
+        // Concurrency Guard: Lock associated Bounty row to serialize with concurrent cancellation and status updates
+        Bounty bounty = bountyRepository.findByIdForUpdate(proposal.getBounty().getId())
+                .or(() -> bountyRepository.findById(proposal.getBounty().getId()))
+                .orElse(proposal.getBounty());
 
         boolean isClientOwner = bounty.getClient().getId().equals(currentUser.getId());
         boolean isAdmin = currentUser.getAuthorities().stream()

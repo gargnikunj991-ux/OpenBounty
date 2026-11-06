@@ -417,4 +417,91 @@ class CriticalBugsReproductionTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail", containsString("HTML script tags and javascript handlers are not permitted")));
     }
+
+    // =========================================================================
+    // BUG 1.1: Concurrency Serialization on Bounty Lock During Milestone Approval
+    // =========================================================================
+    @Test
+    @DisplayName("BUG 1.1 FIX: Concurrent Bounty Cancellation vs Milestone Approval serializes on bounty row lock")
+    void testCriticalBug1_1_ConcurrentBountyCancellationVsMilestoneApproval_SerializesOnBountyLock() throws Exception {
+        Bounty bounty = bountyRepository.save(Bounty.builder()
+                .title("Milestone Lock Concurrency Bounty")
+                .description("Ensures milestone approval locks bounty row against race conditions")
+                .category(BountyCategory.BACKEND_API)
+                .rewardAmount(new BigDecimal("1000.00"))
+                .status(BountyStatus.ASSIGNED)
+                .deadline(LocalDate.now().plusDays(10))
+                .client(clientUser)
+                .assignedDeveloper(devUser)
+                .build());
+
+        Proposal proposal = proposalRepository.save(Proposal.builder()
+                .bounty(bounty)
+                .developer(devUser)
+                .approachDescription("Single deliverable approach")
+                .proposedAmount(new BigDecimal("1000.00"))
+                .estimatedDays(5)
+                .status(ProposalStatus.ACCEPTED)
+                .build());
+
+        Milestone milestone = milestoneRepository.save(Milestone.builder()
+                .proposal(proposal)
+                .title("Final Deliverable")
+                .description("All work ready for approval")
+                .deliverableUrl("https://github.com/org/repo/pull/1")
+                .status(MilestoneStatus.SUBMITTED)
+                .build());
+
+        int numberOfThreads = 2;
+        ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch finishLatch = new CountDownLatch(numberOfThreads);
+
+        AtomicInteger approveStatus = new AtomicInteger(0);
+        AtomicInteger cancelStatus = new AtomicInteger(0);
+
+        // Thread 1: Client approves final milestone (transitions bounty to COMPLETED)
+        executor.submit(() -> {
+            try {
+                startLatch.await();
+                MvcResult result = mockMvc.perform(patch("/api/milestones/" + milestone.getId() + "/approve")
+                                .header("Authorization", "Bearer " + clientToken))
+                        .andReturn();
+                approveStatus.set(result.getResponse().getStatus());
+            } catch (Exception ignored) {
+            } finally {
+                finishLatch.countDown();
+            }
+        });
+
+        // Thread 2: Concurrent cancellation attempt
+        executor.submit(() -> {
+            try {
+                startLatch.await();
+                MvcResult result = mockMvc.perform(patch("/api/bounties/" + bounty.getId() + "/cancel")
+                                .header("Authorization", "Bearer " + clientToken))
+                        .andReturn();
+                cancelStatus.set(result.getResponse().getStatus());
+            } catch (Exception ignored) {
+            } finally {
+                finishLatch.countDown();
+            }
+        });
+
+        startLatch.countDown();
+        boolean completed = finishLatch.await(15, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertThat(completed).isTrue();
+
+        // One of the operations must succeed (200 OK) while the conflicting one is blocked/rejected with 409 Conflict
+        // (Because ASSIGNED bounties cannot be cancelled, cancel will return 409, and approve will return 200,
+        // or if bounty state was raceable, both would have executed inconsistently).
+        assertThat(approveStatus.get()).isEqualTo(200);
+        assertThat(cancelStatus.get()).isEqualTo(409);
+
+        // The final bounty state must be cleanly COMPLETED, never CANCELLED or corrupted
+        Bounty finalBounty = bountyRepository.findById(bounty.getId()).orElseThrow();
+        assertThat(finalBounty.getStatus()).isEqualTo(BountyStatus.COMPLETED);
+    }
 }

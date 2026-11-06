@@ -6,7 +6,11 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -22,9 +26,14 @@ import java.util.function.Function;
  * Uses HMAC-SHA256 signature algorithm.
  */
 @Service
+@Slf4j
 public class JwtService {
 
+    public static final String INSECURE_DEFAULT_SECRET = "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970";
     private static final String ISSUER = "openbounty-api";
+
+    @Autowired(required = false)
+    private Environment environment;
 
     @Value("${jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}")
     private String secretKey;
@@ -39,6 +48,54 @@ public class JwtService {
     public JwtService(String secretKey, long jwtExpirationMs) {
         this.secretKey = secretKey;
         this.jwtExpirationMs = jwtExpirationMs;
+    }
+
+    /**
+     * Validates JWT secret configuration on startup.
+     * Enforces minimum 256-bit entropy (32 bytes) and prevents using the default
+     * public development key in production profiles.
+     */
+    @PostConstruct
+    public void validateConfiguration() {
+        if (secretKey == null || secretKey.trim().isBlank()) {
+            throw new IllegalStateException("JWT secret key must be configured via 'jwt.secret' or 'JWT_SECRET' environment variable.");
+        }
+
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(secretKey);
+        } catch (Exception e) {
+            keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
+        }
+
+        if (keyBytes.length < 32) {
+            throw new IllegalStateException(String.format(
+                    "JWT secret key must be at least 256 bits (32 bytes) for secure HMAC-SHA256 signing. Current length is %d bytes.",
+                    keyBytes.length
+            ));
+        }
+
+        if (INSECURE_DEFAULT_SECRET.equalsIgnoreCase(secretKey.trim())) {
+            boolean isProd = false;
+            if (environment != null && environment.getActiveProfiles() != null) {
+                for (String profile : environment.getActiveProfiles()) {
+                    if ("prod".equalsIgnoreCase(profile) || "production".equalsIgnoreCase(profile)) {
+                        isProd = true;
+                        break;
+                    }
+                }
+            }
+
+            if (isProd) {
+                throw new IllegalStateException(
+                        "CRITICAL SECURITY ERROR: The default development JWT secret key cannot be used in production. " +
+                        "You must configure a unique, cryptographically random JWT_SECRET environment variable (e.g. openssl rand -hex 32)."
+                );
+            } else {
+                log.warn("SECURITY WARNING: Using default development JWT secret key. " +
+                         "Never use this secret in production environments! Generate a unique secret with 'openssl rand -hex 32'.");
+            }
+        }
     }
 
     /**

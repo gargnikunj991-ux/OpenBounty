@@ -132,4 +132,43 @@ class JwtServiceTest {
         Claims claims = jwtService.extractAllClaims(token);
         assertThat(claims.get("customKey", String.class)).isEqualTo("customValue");
     }
+
+    @Test
+    @DisplayName("validateConfiguration succeeds with secure 256-bit key")
+    void testValidateConfiguration_Success() {
+        jwtService.validateConfiguration();
+    }
+
+    @Test
+    @DisplayName("validateConfiguration rejects null or blank secret")
+    void testValidateConfiguration_BlankSecret() {
+        JwtService blankService = new JwtService("   ", EXPIRATION_MS);
+        org.assertj.core.api.Assertions.assertThatThrownBy(blankService::validateConfiguration)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must be configured");
+    }
+
+    @Test
+    @DisplayName("validateConfiguration rejects secret with less than 256-bit entropy")
+    void testValidateConfiguration_WeakSecret() {
+        JwtService weakService = new JwtService("short-secret-12345", EXPIRATION_MS);
+        org.assertj.core.api.Assertions.assertThatThrownBy(weakService::validateConfiguration)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("at least 256 bits");
+    }
+
+    @Test
+    @DisplayName("validateConfiguration rejects default insecure secret in production profile")
+    void testValidateConfiguration_InsecureDefaultInProduction() {
+        JwtService prodJwtService = new JwtService(JwtService.INSECURE_DEFAULT_SECRET, EXPIRATION_MS);
+        org.springframework.mock.env.MockEnvironment prodEnv = new org.springframework.mock.env.MockEnvironment();
+        prodEnv.setActiveProfiles("production");
+
+        // Reflectively set mock environment
+        org.springframework.test.util.ReflectionTestUtils.setField(prodJwtService, "environment", prodEnv);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(prodJwtService::validateConfiguration)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("CRITICAL SECURITY ERROR: The default development JWT secret key cannot be used in production");
+    }
 }
