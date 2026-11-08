@@ -169,6 +169,7 @@ class ProposalServiceTest {
 
         when(userRepository.findById(devPrincipal.getId())).thenReturn(Optional.of(devUser));
         when(bountyRepository.findById(sampleBounty.getId())).thenReturn(Optional.of(sampleBounty));
+        when(bountyRepository.save(any(Bounty.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(proposalRepository.existsByBountyIdAndDeveloperId(sampleBounty.getId(), devUser.getId())).thenReturn(false);
         when(proposalRepository.save(any(Proposal.class))).thenAnswer(invocation -> {
             Proposal p = invocation.getArgument(0);
@@ -185,7 +186,35 @@ class ProposalServiceTest {
         assertThat(response.getProposedAmount()).isEqualByComparingTo("1400.00");
         assertThat(response.getMilestones()).hasSize(1);
         assertThat(response.getMilestones().get(0).getTitle()).isEqualTo("Milestone 1: SecurityFilterChain");
+        assertThat(sampleBounty.getStatus()).isEqualTo(BountyStatus.IN_REVIEW);
 
+        verify(bountyRepository).save(sampleBounty);
+        verify(proposalRepository).save(any(Proposal.class));
+    }
+
+    @Test
+    @DisplayName("submitProposal: should maintain IN_REVIEW status when bounty is already IN_REVIEW")
+    void submitProposal_PreservesInReviewStatus_WhenBountyAlreadyInReview() {
+        sampleBounty.setStatus(BountyStatus.IN_REVIEW);
+
+        ProposalCreateRequest request = ProposalCreateRequest.builder()
+                .approachDescription("Second proposal approach.")
+                .proposedAmount(new BigDecimal("1200.00"))
+                .estimatedDays(5)
+                .milestones(List.of(
+                        MilestoneCreateRequest.builder().title("M1: Setup").build()
+                ))
+                .build();
+
+        when(userRepository.findById(devPrincipal.getId())).thenReturn(Optional.of(devUser));
+        when(bountyRepository.findById(sampleBounty.getId())).thenReturn(Optional.of(sampleBounty));
+        when(proposalRepository.existsByBountyIdAndDeveloperId(sampleBounty.getId(), devUser.getId())).thenReturn(false);
+        when(proposalRepository.save(any(Proposal.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProposalResponse response = proposalService.submitProposal(sampleBounty.getId(), request, devPrincipal);
+
+        assertThat(response).isNotNull();
+        assertThat(sampleBounty.getStatus()).isEqualTo(BountyStatus.IN_REVIEW);
         verify(proposalRepository).save(any(Proposal.class));
     }
 

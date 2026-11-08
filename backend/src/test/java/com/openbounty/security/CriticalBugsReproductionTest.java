@@ -64,6 +64,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *    JWT is expired or unauthenticated.
  * 5. [CRITICAL BUG 5] RefreshToken Entity Contract: RefreshToken equals/hashCode respects database identity.
  * 6. [CRITICAL BUG 6] Stored XSS Mitigation: Malicious HTML tags and script injections are blocked in Proposals & Reviews.
+ * 7. [CRITICAL BUG 7] Bounty Lifecycle State Invariant: Submitting a proposal to an OPEN bounty transitions status to IN_REVIEW.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -503,5 +504,49 @@ class CriticalBugsReproductionTest {
         // The final bounty state must be cleanly COMPLETED, never CANCELLED or corrupted
         Bounty finalBounty = bountyRepository.findById(bounty.getId()).orElseThrow();
         assertThat(finalBounty.getStatus()).isEqualTo(BountyStatus.COMPLETED);
+    }
+
+    // =========================================================================
+    // BUG 7: Bounty Lifecycle Transition to IN_REVIEW on Proposal Submission
+    // =========================================================================
+    @Test
+    @DisplayName("BUG 7 FIX: Submitting a proposal to an OPEN bounty transitions bounty status to IN_REVIEW")
+    void testCriticalBug7_SubmittingProposalToOpenBounty_TransitionsStatusToInReview() throws Exception {
+        Bounty bounty = bountyRepository.save(Bounty.builder()
+                .title("Full Stack Web Platform")
+                .description("Build Next.js and Spring Boot platform with Postgres.")
+                .category(BountyCategory.WEB_DEVELOPMENT)
+                .rewardAmount(new BigDecimal("2500.00"))
+                .status(BountyStatus.OPEN)
+                .deadline(LocalDate.now().plusDays(20))
+                .client(clientUser)
+                .build());
+
+        assertThat(bounty.getStatus()).isEqualTo(BountyStatus.OPEN);
+
+        ProposalCreateRequest proposalRequest = ProposalCreateRequest.builder()
+                .approachDescription("I will implement full stack authentication and responsive UI.")
+                .proposedAmount(new BigDecimal("2400.00"))
+                .estimatedDays(10)
+                .milestones(List.of(
+                        MilestoneCreateRequest.builder()
+                                .title("Milestone 1: Backend API Setup")
+                                .description("Configure Spring Security and REST controllers")
+                                .build()
+                ))
+                .build();
+
+        mockMvc.perform(post("/api/bounties/" + bounty.getId() + "/proposals")
+                        .header("Authorization", "Bearer " + devToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(proposalRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+
+        // Verify the state machine invariant: Bounty MUST transition from OPEN to IN_REVIEW
+        Bounty refreshedBounty = bountyRepository.findById(bounty.getId()).orElseThrow();
+        assertThat(refreshedBounty.getStatus())
+                .as("State machine invariant violated: Bounty with submitted proposals must be in IN_REVIEW state")
+                .isEqualTo(BountyStatus.IN_REVIEW);
     }
 }

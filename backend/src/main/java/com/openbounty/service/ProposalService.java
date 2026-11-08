@@ -145,6 +145,13 @@ public class ProposalService {
         log.info("Proposal ID: {} created successfully for bounty ID: {} by developer ID: {}",
                 savedProposal.getId(), bountyId, developer.getId());
 
+        // State Machine Transition: Transition bounty from OPEN to IN_REVIEW upon proposal submission
+        if (bounty.getStatus() == BountyStatus.OPEN) {
+            bounty.setStatus(BountyStatus.IN_REVIEW);
+            bountyRepository.save(bounty);
+            log.info("Bounty ID: {} transitioned from OPEN to IN_REVIEW upon proposal submission", bounty.getId());
+        }
+
         return ProposalResponse.from(savedProposal);
     }
 
