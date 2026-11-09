@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -67,6 +68,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 6. [CRITICAL BUG 6] Stored XSS Mitigation: Malicious HTML tags and script injections are blocked in Proposals & Reviews.
  * 7. [CRITICAL BUG 7] Bounty Lifecycle State Invariant: Submitting a proposal to an OPEN bounty transitions status to IN_REVIEW.
  * 8. [CRITICAL BUG 8] Stored XSS Mitigation in Milestone Deliverables: Script tags and event handlers in deliverableUrl are rejected with 400 Bad Request.
+ * 9. [CRITICAL BUG 9] Sort Property Injection Defense: Invalid or sensitive sort fields on review endpoints return 400 Bad Request, not unhandled 500.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -608,5 +610,26 @@ class CriticalBugsReproductionTest {
                         .content(objectMapper.writeValueAsString(xssHandlerRequest)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail", containsString("HTML script tags and javascript handlers are not permitted")));
+    }
+
+    // =========================================================================
+    // BUG 9: Sort Property Injection Defense in Reviews
+    // =========================================================================
+    @Test
+    @DisplayName("BUG 9: Invalid or sensitive sort fields on review queries return 400 Bad Request, not unhandled 500")
+    void testCriticalBug9_InvalidOrSensitiveSortPropertyInReviews_Returns400BadRequestNot500() throws Exception {
+        // Sensitive property reference injection attempt (e.g. reviewer.password)
+        mockMvc.perform(get("/api/reviews/user/" + devUser.getId())
+                        .header("Authorization", "Bearer " + devToken)
+                        .param("sort", "reviewer.password,desc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail", containsString("Invalid sort field")));
+
+        // Non-existent arbitrary property injection attempt
+        mockMvc.perform(get("/api/reviews/user/" + devUser.getId())
+                        .header("Authorization", "Bearer " + devToken)
+                        .param("sort", "unmappedProperty,desc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail", containsString("Invalid sort field")));
     }
 }
