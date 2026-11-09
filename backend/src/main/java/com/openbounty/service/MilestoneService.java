@@ -63,6 +63,9 @@ public class MilestoneService {
     public MilestoneResponse submitDeliverable(Long milestoneId, MilestoneSubmitRequest request, UserPrincipal currentUser) {
         log.info("Deliverable submission requested for milestone ID: {} by user ID: {}", milestoneId, currentUser.getId());
 
+        validateNoMaliciousContent(request.getDeliverableUrl(), "deliverableUrl");
+        validateNoMaliciousContent(request.getNotes(), "notes");
+
         // Acquire pessimistic write lock to serialize concurrent submissions and eliminate lost updates
         Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
@@ -247,6 +250,8 @@ public class MilestoneService {
     public ApiResponse requestRevision(Long milestoneId, String feedbackNotes, UserPrincipal currentUser) {
         log.info("Revision requested for milestone ID: {} by user ID: {}", milestoneId, currentUser.getId());
 
+        validateNoMaliciousContent(feedbackNotes, "feedbackNotes");
+
         Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
@@ -340,6 +345,15 @@ public class MilestoneService {
 
         if (!isDeveloper && !isClient && !isAdmin) {
             throw new AccessDeniedException("You do not have permission to view this milestone.");
+        }
+    }
+
+    private void validateNoMaliciousContent(String input, String fieldName) {
+        if (input == null) return;
+        String lower = input.toLowerCase();
+        if (lower.contains("<script") || lower.contains("javascript:") || lower.contains("onerror=") || lower.contains("onload=")) {
+            log.warn("Malicious script payload detected in milestone field '{}': {}", fieldName, input);
+            throw new BadRequestException("Malicious content detected in " + fieldName + ". HTML script tags and javascript handlers are not permitted.");
         }
     }
 }

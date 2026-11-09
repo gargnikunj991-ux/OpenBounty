@@ -3,6 +3,7 @@ package com.openbounty.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openbounty.dto.request.auth.RefreshTokenRequest;
 import com.openbounty.dto.request.milestone.MilestoneCreateRequest;
+import com.openbounty.dto.request.milestone.MilestoneSubmitRequest;
 import com.openbounty.dto.request.proposal.ProposalCreateRequest;
 import com.openbounty.dto.request.review.ReviewCreateRequest;
 import com.openbounty.enums.BountyCategory;
@@ -65,6 +66,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 5. [CRITICAL BUG 5] RefreshToken Entity Contract: RefreshToken equals/hashCode respects database identity.
  * 6. [CRITICAL BUG 6] Stored XSS Mitigation: Malicious HTML tags and script injections are blocked in Proposals & Reviews.
  * 7. [CRITICAL BUG 7] Bounty Lifecycle State Invariant: Submitting a proposal to an OPEN bounty transitions status to IN_REVIEW.
+ * 8. [CRITICAL BUG 8] Stored XSS Mitigation in Milestone Deliverables: Script tags and event handlers in deliverableUrl are rejected with 400 Bad Request.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -548,5 +550,63 @@ class CriticalBugsReproductionTest {
         assertThat(refreshedBounty.getStatus())
                 .as("State machine invariant violated: Bounty with submitted proposals must be in IN_REVIEW state")
                 .isEqualTo(BountyStatus.IN_REVIEW);
+    }
+
+    // =========================================================================
+    // BUG 8: Stored XSS Prevention in Milestone Deliverable Submissions
+    // =========================================================================
+    @Test
+    @DisplayName("BUG 8 FIX: Malicious script tags and event handlers in deliverable URL are rejected with 400 Bad Request")
+    void testCriticalBug8_StoredXssInDeliverableUrl_IsRejectedWithBadRequest() throws Exception {
+        Bounty bounty = bountyRepository.save(Bounty.builder()
+                .title("Deliverable XSS Verification Bounty")
+                .description("Ensuring deliverable URLs cannot contain stored XSS payloads")
+                .category(BountyCategory.BACKEND_API)
+                .rewardAmount(new BigDecimal("1500.00"))
+                .status(BountyStatus.ASSIGNED)
+                .deadline(LocalDate.now().plusDays(10))
+                .client(clientUser)
+                .assignedDeveloper(devUser)
+                .build());
+
+        Proposal proposal = proposalRepository.save(Proposal.builder()
+                .bounty(bounty)
+                .developer(devUser)
+                .approachDescription("Architecture approach for XSS defense test")
+                .proposedAmount(new BigDecimal("1400.00"))
+                .estimatedDays(7)
+                .status(ProposalStatus.ACCEPTED)
+                .build());
+
+        Milestone milestone = milestoneRepository.save(Milestone.builder()
+                .proposal(proposal)
+                .title("Deliverable 1")
+                .description("Testing deliverable URL input sanitization")
+                .status(MilestoneStatus.PENDING)
+                .build());
+
+        // Attempt to submit deliverable with injected <script> tag
+        MilestoneSubmitRequest xssScriptRequest = MilestoneSubmitRequest.builder()
+                .deliverableUrl("https://github.com/org/repo/pull/1?<script>alert('pwned')</script>")
+                .build();
+
+        mockMvc.perform(post("/api/milestones/" + milestone.getId() + "/submit")
+                        .header("Authorization", "Bearer " + devToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(xssScriptRequest)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail", containsString("HTML script tags and javascript handlers are not permitted")));
+
+        // Attempt to submit deliverable with injected onerror handler
+        MilestoneSubmitRequest xssHandlerRequest = MilestoneSubmitRequest.builder()
+                .deliverableUrl("https://example.com/demo?<img src=x onerror=alert('xss')>")
+                .build();
+
+        mockMvc.perform(post("/api/milestones/" + milestone.getId() + "/submit")
+                        .header("Authorization", "Bearer " + devToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(xssHandlerRequest)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail", containsString("HTML script tags and javascript handlers are not permitted")));
     }
 }
