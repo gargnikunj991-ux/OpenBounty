@@ -126,8 +126,12 @@ public class AuthService {
      */
     @Transactional
     public void logout(RefreshTokenRequest request, UserPrincipal currentUser) {
-        if (request != null && request.isAllDevices() && currentUser != null) {
-            userRepository.findById(currentUser.getId()).ifPresent(refreshTokenService::revokeAllForUser);
+        if (request != null && request.isAllDevices()) {
+            if (currentUser != null) {
+                userRepository.findById(currentUser.getId()).ifPresent(refreshTokenService::revokeAllForUser);
+            } else if (request.getRefreshToken() != null && !request.getRefreshToken().isBlank()) {
+                refreshTokenService.revokeAllForToken(request.getRefreshToken());
+            }
         } else if (request != null && request.getRefreshToken() != null && !request.getRefreshToken().isBlank()) {
             refreshTokenService.revokeToken(request.getRefreshToken());
         } else if (currentUser != null) {

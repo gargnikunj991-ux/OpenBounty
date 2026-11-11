@@ -153,6 +153,13 @@ This document provides the exhaustive API reference and contract for the **OpenB
 * **Access:** `ROLE_CLIENT`
 * **Headers:** `Authorization: Bearer <jwt_token>`
 
+#### Validation & Security Guards
+* `title`: Required, 5–200 characters. Sanitized against XSS (script tags and event handlers rejected with `400 Bad Request`).
+* `description`: Required, 10–5000 characters. Sanitized against XSS.
+* `category`: Valid `BountyCategory` enum.
+* `rewardAmount`: Must be > 0.
+* `deadline`: Must be a future date (`@FutureOrPresent`).
+
 #### Request Body
 ```json
 {
@@ -183,19 +190,6 @@ This document provides the exhaustive API reference and contract for the **OpenB
   "createdAt": "2026-08-31T21:10:00.000Z"
 }
 ```
-
----
-
-### 2.1 Create a Bounty
-* **Endpoint:** `POST /api/bounties`
-* **Access:** `ROLE_CLIENT` only
-* **Headers:** `Authorization: Bearer <jwt_token>`
-* **Validation & Security Guards:**
-  - `title`: Required, 5–200 characters. Sanitized against XSS (script tags and event handlers rejected with `400 Bad Request`).
-  - `description`: Required, 10–5000 characters. Sanitized against XSS.
-  - `category`: Valid `BountyCategory` enum.
-  - `rewardAmount`: Must be > 0.
-  - `deadline`: Must be a future date (`@FutureOrPresent`).
 
 ---
 
@@ -444,6 +438,64 @@ This document provides the exhaustive API reference and contract for the **OpenB
 
 ---
 
+### 4.3 Request Deliverable Revision
+* **Endpoint:** `POST /api/milestones/{id}/request-revision`
+* **Access:** `ROLE_CLIENT` (Owner of the bounty)
+* **Query Parameters:**
+  - `feedbackNotes` *(optional)*: Specific instructions for rework (sanitized against XSS)
+* **Side Effects:**
+  - Reverts milestone status from `SUBMITTED` back to `PENDING` for developer revision.
+
+#### Response `200 OK`
+```json
+{
+  "success": true,
+  "message": "Revision requested. Milestone reverted to PENDING status."
+}
+```
+
+---
+
+### 4.4 Get Milestone by ID
+* **Endpoint:** `GET /api/milestones/{id}`
+* **Access:** Authenticated (Participant or Administrator)
+
+#### Response `200 OK`
+```json
+{
+  "id": 301,
+  "title": "Milestone 1: Filter Chain & JWT Token Generation",
+  "description": "Setup SecurityFilterChain and JwtService with HMAC-SHA256 signature verification.",
+  "deliverableUrl": "https://github.com/alex-dev/openbounty-security-module/pull/1",
+  "status": "APPROVED",
+  "submittedAt": "2026-08-31T21:20:00.000Z",
+  "approvedAt": "2026-08-31T21:25:00.000Z"
+}
+```
+
+---
+
+### 4.5 List Milestones by Proposal
+* **Endpoint:** `GET /api/milestones/proposal/{proposalId}`
+* **Access:** Authenticated (Participant or Administrator)
+
+#### Response `200 OK`
+```json
+[
+  {
+    "id": 301,
+    "title": "Milestone 1: Filter Chain & JWT Token Generation",
+    "description": "Setup SecurityFilterChain and JwtService with HMAC-SHA256 signature verification.",
+    "deliverableUrl": "https://github.com/alex-dev/openbounty-security-module/pull/1",
+    "status": "APPROVED",
+    "submittedAt": "2026-08-31T21:20:00.000Z",
+    "approvedAt": "2026-08-31T21:25:00.000Z"
+  }
+]
+```
+
+---
+
 ## 5. Reviews & Reputation Module (`/api/reviews`)
 
 ### 5.1 Submit a Review
@@ -470,6 +522,75 @@ This document provides the exhaustive API reference and contract for the **OpenB
   "rating": 5,
   "feedback": "Outstanding code quality...",
   "createdAt": "2026-08-31T21:30:00.000Z"
+}
+```
+
+---
+
+### 5.2 Get Reviews Received by User
+* **Endpoint:** `GET /api/reviews/user/{userId}`
+* **Access:** Public
+* **Query Parameters:**
+  - `page`: Page index (default: `0`)
+  - `size`: Page size (default: `10`)
+  - `sort`: Allowed sort fields: `id`, `rating`, `createdAt` (default: `createdAt,desc`)
+
+#### Response `200 OK`
+```json
+{
+  "content": [
+    {
+      "id": 401,
+      "bountyId": 101,
+      "reviewerId": 5,
+      "revieweeId": 1,
+      "rating": 5,
+      "feedback": "Outstanding code quality, thorough tests, and delivered 2 days ahead of schedule!",
+      "createdAt": "2026-08-31T21:30:00.000Z"
+    }
+  ],
+  "pageNumber": 0,
+  "pageSize": 10,
+  "totalElements": 1,
+  "totalPages": 1,
+  "last": true,
+  "first": true,
+  "empty": false
+}
+```
+
+---
+
+### 5.3 Get Reviews for Bounty
+* **Endpoint:** `GET /api/reviews/bounty/{bountyId}`
+* **Access:** Public
+
+#### Response `200 OK`
+```json
+[
+  {
+    "id": 401,
+    "bountyId": 101,
+    "reviewerId": 5,
+    "revieweeId": 1,
+    "rating": 5,
+    "feedback": "Outstanding code quality, thorough tests, and delivered 2 days ahead of schedule!",
+    "createdAt": "2026-08-31T21:30:00.000Z"
+  }
+]
+```
+
+---
+
+### 5.4 Get User Average Rating
+* **Endpoint:** `GET /api/reviews/user/{userId}/rating`
+* **Access:** Public
+
+#### Response `200 OK`
+```json
+{
+  "userId": 1,
+  "averageRating": 5.0
 }
 ```
 

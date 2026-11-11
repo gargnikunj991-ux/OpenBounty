@@ -4,6 +4,7 @@ import com.openbounty.dto.response.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -52,6 +53,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex, HttpServletRequest request) {
         log.warn("Bad request: {}", ex.getMessage());
         return buildResponse(HttpStatus.BAD_REQUEST, "bad-request", "Bad Request", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ErrorResponse> handlePropertyReference(PropertyReferenceException ex, HttpServletRequest request) {
+        log.warn("Invalid property reference in request: {}", ex.getMessage());
+        return buildResponse(HttpStatus.BAD_REQUEST, "invalid-sort-field", "Invalid Sort Parameter",
+                "Invalid sort field: '" + ex.getPropertyName() + "'. Property does not exist on target entity.", request);
     }
 
     @ExceptionHandler(InsufficientBountyRewardException.class)

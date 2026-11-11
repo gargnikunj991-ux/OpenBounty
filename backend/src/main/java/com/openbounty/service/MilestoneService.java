@@ -63,12 +63,18 @@ public class MilestoneService {
     public MilestoneResponse submitDeliverable(Long milestoneId, MilestoneSubmitRequest request, UserPrincipal currentUser) {
         log.info("Deliverable submission requested for milestone ID: {} by user ID: {}", milestoneId, currentUser.getId());
 
+        validateNoMaliciousContent(request.getDeliverableUrl(), "deliverableUrl");
+        validateNoMaliciousContent(request.getNotes(), "notes");
+
         // Acquire pessimistic write lock to serialize concurrent submissions and eliminate lost updates
         Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
         Proposal proposal = milestone.getProposal();
-        Bounty bounty = proposal.getBounty();
+        // Concurrency Guard: Lock associated Bounty row to serialize with concurrent cancellation and status updates
+        Bounty bounty = bountyRepository.findByIdForUpdate(proposal.getBounty().getId())
+                .or(() -> bountyRepository.findById(proposal.getBounty().getId()))
+                .orElse(proposal.getBounty());
 
         // 1. Proposal state check
         if (proposal.getStatus() != ProposalStatus.ACCEPTED) {
@@ -76,10 +82,15 @@ public class MilestoneService {
             throw new BadRequestException("Deliverables can only be submitted for accepted proposals.");
         }
 
-        // 2. Bounty state check
-        if (bounty.getStatus() != BountyStatus.ASSIGNED && bounty.getStatus() != BountyStatus.IN_PROGRESS) {
-            log.warn("Submission rejected: Bounty ID {} is in state '{}'", bounty.getId(), bounty.getStatus());
-            throw new BadRequestException("Deliverables cannot be submitted for a bounty in status: " + bounty.getStatus());
+        // 2. Bounty state check (bypasses 1st-level cache after acquiring lock to check true committed status)
+        BountyStatus currentBountyStatus = bountyRepository.findStatusById(bounty.getId());
+        if (currentBountyStatus == null) {
+            currentBountyStatus = bounty.getStatus();
+        }
+
+        if (currentBountyStatus != BountyStatus.ASSIGNED && currentBountyStatus != BountyStatus.IN_PROGRESS) {
+            log.warn("Submission rejected: Bounty ID {} is in state '{}'", bounty.getId(), currentBountyStatus);
+            throw new BadRequestException("Deliverables cannot be submitted for a bounty in status: " + currentBountyStatus);
         }
 
         // 3. IDOR Defense: Only the assigned developer can submit
@@ -152,7 +163,10 @@ public class MilestoneService {
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
         Proposal proposal = milestone.getProposal();
-        Bounty bounty = proposal.getBounty();
+        // Concurrency Guard: Lock associated Bounty row to serialize with concurrent cancellation and status updates
+        Bounty bounty = bountyRepository.findByIdForUpdate(proposal.getBounty().getId())
+                .or(() -> bountyRepository.findById(proposal.getBounty().getId()))
+                .orElse(proposal.getBounty());
 
         // 1. IDOR Defense: Only the bounty creator or admin can approve
         boolean isClientOwner = bounty.getClient().getId().equals(currentUser.getId());
@@ -236,10 +250,16 @@ public class MilestoneService {
     public ApiResponse requestRevision(Long milestoneId, String feedbackNotes, UserPrincipal currentUser) {
         log.info("Revision requested for milestone ID: {} by user ID: {}", milestoneId, currentUser.getId());
 
+        validateNoMaliciousContent(feedbackNotes, "feedbackNotes");
+
         Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
-        Bounty bounty = milestone.getProposal().getBounty();
+        Proposal proposal = milestone.getProposal();
+        // Concurrency Guard: Lock associated Bounty row to serialize with concurrent cancellation and status updates
+        Bounty bounty = bountyRepository.findByIdForUpdate(proposal.getBounty().getId())
+                .or(() -> bountyRepository.findById(proposal.getBounty().getId()))
+                .orElse(proposal.getBounty());
 
         boolean isClientOwner = bounty.getClient().getId().equals(currentUser.getId());
         boolean isAdmin = currentUser.getAuthorities().stream()
@@ -325,6 +345,15 @@ public class MilestoneService {
 
         if (!isDeveloper && !isClient && !isAdmin) {
             throw new AccessDeniedException("You do not have permission to view this milestone.");
+        }
+    }
+
+    private void validateNoMaliciousContent(String input, String fieldName) {
+        if (input == null) return;
+        String lower = input.toLowerCase();
+        if (lower.contains("<script") || lower.contains("javascript:") || lower.contains("onerror=") || lower.contains("onload=")) {
+            log.warn("Malicious script payload detected in milestone field '{}': {}", fieldName, input);
+            throw new BadRequestException("Malicious content detected in " + fieldName + ". HTML script tags and javascript handlers are not permitted.");
         }
     }
 }

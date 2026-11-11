@@ -20,10 +20,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Service managing peer reviews, ratings, and dynamic algorithmic reputation scoring.
@@ -33,6 +35,10 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class ReviewService {
+
+    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
+            "id", "rating", "createdAt"
+    );
 
     private final ReviewRepository reviewRepository;
     private final BountyRepository bountyRepository;
@@ -56,6 +62,8 @@ public class ReviewService {
     public ReviewResponse createReview(ReviewCreateRequest request, UserPrincipal currentUser) {
         log.info("Review creation requested by user ID: {} for bounty ID: {}, reviewee ID: {}",
                 currentUser.getId(), request.getBountyId(), request.getRevieweeId());
+
+        validateNoMaliciousContent(request.getFeedback(), "feedback");
 
         // 1. Validate Bounty existence
         Bounty bounty = bountyRepository.findById(request.getBountyId())
@@ -145,6 +153,16 @@ public class ReviewService {
         if (!userRepository.existsById(userId)) {
             throw new ResourceNotFoundException("User", "id", userId);
         }
+
+        if (pageable != null && pageable.getSort().isSorted()) {
+            for (Sort.Order order : pageable.getSort()) {
+                if (!ALLOWED_SORT_FIELDS.contains(order.getProperty())) {
+                    log.warn("Rejected invalid or sensitive sort parameter: '{}'", order.getProperty());
+                    throw new BadRequestException("Invalid sort field: '" + order.getProperty() + "'. Allowed sort fields are: " + ALLOWED_SORT_FIELDS);
+                }
+            }
+        }
+
         Page<Review> reviewPage = reviewRepository.findByRevieweeId(userId, pageable);
         return PagedResponse.from(reviewPage, ReviewResponse::from);
     }
@@ -176,6 +194,15 @@ public class ReviewService {
             throw new ResourceNotFoundException("User", "id", userId);
         }
         return reviewRepository.calculateAverageRatingForUser(userId);
+    }
+
+    private void validateNoMaliciousContent(String input, String fieldName) {
+        if (input == null) return;
+        String lower = input.toLowerCase();
+        if (lower.contains("<script") || lower.contains("javascript:") || lower.contains("onerror=") || lower.contains("onload=")) {
+            log.warn("Malicious script payload detected in review field '{}': {}", fieldName, input);
+            throw new BadRequestException("Malicious content detected in " + fieldName + ". HTML script tags and javascript handlers are not permitted.");
+        }
     }
 
     /**

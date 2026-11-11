@@ -34,9 +34,10 @@ public interface MilestoneRepository extends JpaRepository<Milestone, Long> {
      * Acquires a PESSIMISTIC_WRITE (SELECT ... FOR UPDATE) lock on the milestone row.
      * Prevents race conditions such as concurrent double-approvals, double reputation bonuses,
      * or conflicting state transitions between client approval and developer revisions.
+     * Crucial: Does NOT use @EntityGraph (outer joins) to prevent PostgreSQL dialect failure:
+     * 'ERROR: FOR UPDATE cannot be applied to the nullable side of an outer join'.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @EntityGraph(attributePaths = {"proposal", "proposal.bounty", "proposal.bounty.client", "proposal.developer"})
     @Query("SELECT m FROM Milestone m WHERE m.id = :id")
     Optional<Milestone> findByIdForUpdate(@Param("id") Long id);
 

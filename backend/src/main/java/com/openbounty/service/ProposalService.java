@@ -58,6 +58,14 @@ public class ProposalService {
         log.info("User '{}' (ID: {}) submitting proposal for bounty ID: {}",
                 currentUser.getEmail(), currentUser.getId(), bountyId);
 
+        validateNoMaliciousContent(request.getApproachDescription(), "approachDescription");
+        if (request.getMilestones() != null) {
+            for (MilestoneCreateRequest milestoneReq : request.getMilestones()) {
+                validateNoMaliciousContent(milestoneReq.getTitle(), "milestone title");
+                validateNoMaliciousContent(milestoneReq.getDescription(), "milestone description");
+            }
+        }
+
         // Acquire pessimistic write lock on developer row to serialize concurrent proposal submissions and eliminate double-bidding
         User developer = userRepository.findByIdForUpdate(currentUser.getId())
                 .or(() -> userRepository.findById(currentUser.getId()))
@@ -67,7 +75,9 @@ public class ProposalService {
             throw new AccessDeniedException("Only developers can submit solution proposals.");
         }
 
-        Bounty bounty = bountyRepository.findById(bountyId)
+        // Acquire pessimistic write lock on bounty row to serialize with concurrent cancel and accept operations
+        Bounty bounty = bountyRepository.findByIdForUpdate(bountyId)
+                .or(() -> bountyRepository.findById(bountyId))
                 .orElseThrow(() -> new ResourceNotFoundException("Bounty", "id", bountyId));
 
         // FIX 2: Self-dealing guard — use domain-specific exception for fraud detection
@@ -83,10 +93,15 @@ public class ProposalService {
             throw new BountyExpiredException("Bounty deadline has expired and cannot accept proposals.");
         }
 
-        // State machine guard: Bounty must be OPEN or IN_REVIEW
-        if (bounty.getStatus() != BountyStatus.OPEN && bounty.getStatus() != BountyStatus.IN_REVIEW) {
-            log.warn("Rejected proposal submission: Bounty ID {} is in state '{}'", bountyId, bounty.getStatus());
-            throw new InvalidStateTransitionException("Bounty", bounty.getStatus(), ProposalStatus.PENDING);
+        // State machine guard: read committed status to defeat cache during concurrent accept/cancel races
+        BountyStatus currentStatus = bountyRepository.findStatusById(bountyId);
+        if (currentStatus == null) {
+            currentStatus = bounty.getStatus();
+        }
+
+        if (currentStatus != BountyStatus.OPEN && currentStatus != BountyStatus.IN_REVIEW) {
+            log.warn("Rejected proposal submission: Bounty ID {} is in state '{}'", bountyId, currentStatus);
+            throw new InvalidStateTransitionException("Cannot submit proposals to a bounty in status: " + currentStatus);
         }
 
         // FIX 3: Budget cap guard — proposed amount must not exceed bounty reward
@@ -129,6 +144,13 @@ public class ProposalService {
         Proposal savedProposal = proposalRepository.save(proposal);
         log.info("Proposal ID: {} created successfully for bounty ID: {} by developer ID: {}",
                 savedProposal.getId(), bountyId, developer.getId());
+
+        // State Machine Transition: Transition bounty from OPEN to IN_REVIEW upon proposal submission
+        if (bounty.getStatus() == BountyStatus.OPEN) {
+            bounty.setStatus(BountyStatus.IN_REVIEW);
+            bountyRepository.save(bounty);
+            log.info("Bounty ID: {} transitioned from OPEN to IN_REVIEW upon proposal submission", bounty.getId());
+        }
 
         return ProposalResponse.from(savedProposal);
     }
@@ -282,6 +304,15 @@ public class ProposalService {
                 .proposalId(proposal.getId())
                 .status(ProposalStatus.REJECTED)
                 .build();
+    }
+
+    private void validateNoMaliciousContent(String input, String fieldName) {
+        if (input == null) return;
+        String lower = input.toLowerCase();
+        if (lower.contains("<script") || lower.contains("javascript:") || lower.contains("onerror=") || lower.contains("onload=")) {
+            log.warn("Malicious script payload detected in proposal field '{}': {}", fieldName, input);
+            throw new BadRequestException("Malicious content detected in " + fieldName + ". HTML script tags and javascript handlers are not permitted.");
+        }
     }
 
     /**

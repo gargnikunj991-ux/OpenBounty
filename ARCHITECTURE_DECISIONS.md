@@ -55,10 +55,10 @@ The OpenBounty data model consists of highly relational data: users, challenges,
 
 ### Options Considered
 1. **MongoDB / NoSQL Document Store**: Document model for bounties with embedded proposals.
-2. **PostgreSQL 15+ with Spring Data JPA & Hibernate**: Relational ACID database with strong typing.
+2. **PostgreSQL 16 with Spring Data JPA & Hibernate**: Relational ACID database with strong typing.
 
 ### Decision
-Adopt **PostgreSQL 15+** with **Spring Data JPA**.
+Adopt **PostgreSQL 16** with **Spring Data JPA**.
 
 ### Consequences
 * **Positive**:

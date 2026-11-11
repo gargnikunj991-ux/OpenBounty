@@ -110,6 +110,17 @@ public class RefreshTokenService {
     }
 
     /**
+     * Revoke all active refresh tokens for the user identified by a valid or active refresh token.
+     * Used when an unauthenticated client requests global logout across all devices.
+     */
+    @Transactional
+    public void revokeAllForToken(String tokenString) {
+        refreshTokenRepository.findByToken(tokenString).ifPresent(token -> {
+            revokeAllForUser(token.getUser());
+        });
+    }
+
+    /**
      * Periodically purge expired refresh tokens from the database.
      * Runs daily at 03:00 AM UTC to keep table size lean and indexes performant.
      */
