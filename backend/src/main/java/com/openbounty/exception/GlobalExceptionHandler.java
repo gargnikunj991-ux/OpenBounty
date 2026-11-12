@@ -212,6 +212,16 @@ public class GlobalExceptionHandler {
     }
 
     // =========================================================================
+    // 422 UNPROCESSABLE ENTITY Handlers
+    // =========================================================================
+
+    @ExceptionHandler(UnbalancedLedgerException.class)
+    public ResponseEntity<ErrorResponse> handleUnbalancedLedger(UnbalancedLedgerException ex, HttpServletRequest request) {
+        log.error("Financial invariant violation - Unbalanced ledger transaction: {}", ex.getMessage());
+        return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, "unbalanced-ledger-transaction", "Unbalanced Financial Transaction", ex.getMessage(), request);
+    }
+
+    // =========================================================================
     // 405 METHOD NOT ALLOWED Handlers
     // =========================================================================
 
