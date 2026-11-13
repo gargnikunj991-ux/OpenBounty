@@ -57,4 +57,9 @@ public interface MilestoneRepository extends JpaRepository<Milestone, Long> {
      * Used for fast auto-completion verification without iterating through all entities in memory.
      */
     boolean existsByProposalIdAndStatusNot(Long proposalId, MilestoneStatus status);
+
+    /**
+     * Count milestones in a proposal that do not match a given status.
+     */
+    long countByProposalIdAndStatusNot(Long proposalId, MilestoneStatus status);
 }
