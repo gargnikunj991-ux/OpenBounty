@@ -287,3 +287,17 @@ CREATE INDEX idx_refresh_tokens_expiry ON refresh_tokens(expiry_date);
 | | `expiry_date` | `TIMESTAMP` | `NOT NULL` | Token expiration timestamp (default 24 hours) |
 | | `revoked` | `BOOLEAN` | `NOT NULL`, `DEFAULT FALSE` | Revocation status flag for reuse detection |
 | | `created_at` | `TIMESTAMP` | `NOT NULL` | Creation timestamp |
+| **`ledger_transactions`** | `id` | `BIGSERIAL` | `PK`, Auto-increment | Unique financial journal transaction identifier |
+| | `transaction_reference` | `VARCHAR(64)` | `NOT NULL`, `UNIQUE` | Unique human-readable transaction reference (`TXN-...`) |
+| | `transaction_type` | `VARCHAR(40)` | `NOT NULL` | Operation (`BOUNTY_ESCROW_LOCK`, `BOUNTY_ESCROW_REFUND`, etc.) |
+| | `description` | `VARCHAR(255)` | | Human-readable audit narrative |
+| | `bounty_id` | `BIGINT` | `INDEXED` | Optional referenced bounty identifier |
+| | `milestone_id` | `BIGINT` | `INDEXED` | Optional referenced milestone identifier |
+| | `user_id` | `BIGINT` | | Optional associated user identifier (client/developer) |
+| | `created_at` | `TIMESTAMP` | `NOT NULL` | Immutable journal entry creation timestamp |
+| **`ledger_entries`** | `id` | `BIGSERIAL` | `PK`, Auto-increment | Unique debit/credit entry identifier |
+| | `transaction_id` | `BIGINT` | `FK -> ledger_transactions(id)`, `NOT NULL` | Parent journal transaction |
+| | `account` | `VARCHAR(40)` | `NOT NULL`, `INDEXED` | Chart-of-accounts (`PLATFORM_CASH`, `CLIENT_ESCROW_LOCKED`, etc.) |
+| | `entry_type` | `VARCHAR(10)` | `NOT NULL` | Direction (`DEBIT` or `CREDIT`) |
+| | `amount` | `NUMERIC(15,2)`| `NOT NULL`, `> 0` | Monetary amount |
+| | `created_at` | `TIMESTAMP` | `NOT NULL` | Immutable entry creation timestamp |

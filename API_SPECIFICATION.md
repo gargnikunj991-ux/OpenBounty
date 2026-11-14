@@ -633,7 +633,103 @@ This document provides the exhaustive API reference and contract for the **OpenB
 
 ---
 
-## 7. Standardized Error Handling (RFC 7807 Problem Details)
+## 7. Financial Ledger & Escrow Audit Module (`/api/ledger`)
+
+### 7.1 Platform Balance Sheet Audit Report
+* **Endpoint:** `GET /api/ledger/balance-sheet`
+* **Access:** Restricted (`ROLE_ADMIN` only)
+* **Description:** Computes real-time aggregate debit and credit balances across standard chart-of-accounts (`PLATFORM_CASH`, `CLIENT_ESCROW_LOCKED`, `DEVELOPER_PAYABLE`, `PLATFORM_FEE_REVENUE`, `DISPUTE_SUSPENSE`) and validates the GAAP balance sheet equation.
+
+#### Response `200 OK`
+```json
+{
+  "platformCash": 50000.00,
+  "clientEscrowLocked": 32000.00,
+  "developerPayable": 15300.00,
+  "platformFeeRevenue": 2700.00,
+  "disputeSuspense": 0.00,
+  "balanced": true,
+  "generatedAt": "2026-11-14T20:00:00.000Z"
+}
+```
+
+---
+
+### 7.2 Paginated Journal Transactions Audit Trail
+* **Endpoint:** `GET /api/ledger/transactions?page=0&size=20`
+* **Access:** Restricted (`ROLE_ADMIN` only)
+* **Description:** Retrieves paginated immutable double-entry ledger transactions with nested debits and credits.
+
+#### Response `200 OK`
+```json
+{
+  "content": [
+    {
+      "id": 101,
+      "transactionReference": "TXN-LOCK-12-87D7C974",
+      "transactionType": "BOUNTY_ESCROW_LOCK",
+      "description": "Escrow locked for bounty #12 ('Build Spring Security Module')",
+      "bountyId": 12,
+      "milestoneId": null,
+      "userId": 4,
+      "totalDebit": 2000.00,
+      "totalCredit": 2000.00,
+      "balanced": true,
+      "createdAt": "2026-11-14T19:30:00.000Z",
+      "entries": [
+        { "id": 201, "account": "PLATFORM_CASH", "entryType": "DEBIT", "amount": 2000.00 },
+        { "id": 202, "account": "CLIENT_ESCROW_LOCKED", "entryType": "CREDIT", "amount": 2000.00 }
+      ]
+    }
+  ],
+  "pageNumber": 0,
+  "pageSize": 20,
+  "totalElements": 1,
+  "totalPages": 1,
+  "last": true,
+  "first": true,
+  "empty": false
+}
+```
+
+---
+
+### 7.3 Bounty Escrow Summary
+* **Endpoint:** `GET /api/ledger/escrow/bounties/{bountyId}`
+* **Access:** Authenticated (`ROLE_CLIENT` owner, assigned `ROLE_DEVELOPER`, or `ROLE_ADMIN`)
+* **Description:** Returns the locked escrow balance, disbursed earnings, refunds, and related journal transactions for a specific bounty. Protected by IDOR access guards.
+
+#### Response `200 OK`
+```json
+{
+  "bountyId": 12,
+  "bountyTitle": "Build Spring Security Module",
+  "totalRewardAmount": 2000.00,
+  "currentLockedEscrow": 1000.00,
+  "totalDisbursed": 1000.00,
+  "totalRefunded": 0.00,
+  "transactions": [ ... ]
+}
+```
+
+---
+
+### 7.4 Developer Accumulated Payable Balance
+* **Endpoint:** `GET /api/ledger/payable/me`
+* **Access:** Restricted (`ROLE_DEVELOPER` only)
+* **Description:** Returns the total accumulated earnings held in `DEVELOPER_PAYABLE` awaiting payout withdrawal for the authenticated developer.
+
+#### Response `200 OK`
+```json
+{
+  "userId": 5,
+  "payableBalance": 1700.00
+}
+```
+
+---
+
+## 8. Standardized Error Handling (RFC 7807 Problem Details)
 
 All error responses return a standardized JSON structure:
 

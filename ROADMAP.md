@@ -158,21 +158,31 @@ This document outlines the master engineering roadmap to transform **OpenBounty*
 
 ---
 
-## Phase 10: In-House Escrow & Double-Entry Financial Ledger 📒
-* **Status**: Planned (Core Backend Engineering Signal)
+## Phase 10: In-House Escrow & Double-Entry Financial Ledger ✅
+* **Status**: Completed
 * **Goal**: Guarantee zero financial reconciliation errors, eliminate balance drift, and maintain GAAP-compliant audit trails.
 * **Key Deliverables**:
-  1. Immutable `ledger_entries` table recording balanced Debits and Credits.
-  2. Standard Ledger Accounts:
-     - `PLATFORM_CASH`
-     - `CLIENT_ESCROW_LOCKED`
-     - `DEVELOPER_PAYABLE`
-     - `PLATFORM_FEE_REVENUE`
-  3. Invariant Enforcer: Strict validation verifying $\sum \text{Debit} \equiv \sum \text{Credit}$ on every financial journal entry.
-  4. Automated Escrow Lifecycle:
-     - Locking funds on bounty publication (`CLIENT_ESCROW_LOCKED`).
-     - Splitting funds upon milestone approval (Developer disbursement + Platform take-rate).
-* **Engineering Concept**: Double-entry bookkeeping, ACID financial consistency, transactional invariants.
+  1. Immutable `ledger_transactions` and `ledger_entries` tables with strict foreign keys and index optimization.
+  2. Standard Chart-of-Accounts:
+     - `PLATFORM_CASH` (Asset: Total liquid client funds held on platform)
+     - `CLIENT_ESCROW_LOCKED` (Liability: Client funds locked in escrow pending deliverables)
+     - `DEVELOPER_PAYABLE` (Liability: Approved milestone earnings payable to developers)
+     - `PLATFORM_FEE_REVENUE` (Revenue: Platform take-rate commission recognized on completion)
+     - `DISPUTE_SUSPENSE` (Liability/Suspense: Funds frozen under active arbitration)
+  3. Invariant Enforcer (`LedgerBalanceValidator`):
+     - Strict GAAP validation verifying $\sum \text{Debit} \equiv \sum \text{Credit}$ prior to persistence with `UnbalancedLedgerException` (RFC 7807 422).
+  4. Automated Escrow Lifecycle (`EscrowLedgerService`):
+     - Automated escrow lock on bounty creation (`CLIENT_ESCROW_LOCKED`).
+     - Automated escrow refund on cancellation (`BOUNTY_ESCROW_REFUND`).
+     - Automated milestone payout release with mathematical take-rate split (`DEVELOPER_PAYABLE` 85%, `PLATFORM_FEE_REVENUE` 15%).
+  5. Audit & Escrow REST APIs (`LedgerController`):
+     - `GET /api/ledger/balance-sheet` (Platform-wide GAAP balance sheet audit, Admin only).
+     - `GET /api/ledger/transactions` (Paginated transaction audit trail, Admin only).
+     - `GET /api/ledger/escrow/bounties/{id}` (Bounty escrow summary, Owner/Assigned/Admin with IDOR defense).
+     - `GET /api/ledger/payable/me` (Developer payable balance inquiry).
+  6. Comprehensive Test Suite:
+     - `LedgerBalanceValidatorTest`, `LedgerRepositoryTest`, `EscrowLedgerServiceTest`, and `LedgerControllerTest` covering multithreaded concurrency.
+* **Engineering Concept**: Double-entry bookkeeping, ACID financial consistency, transactional invariants, GAAP balance sheet equation.
 
 ---
 
