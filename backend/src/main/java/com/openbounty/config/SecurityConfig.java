@@ -1,5 +1,6 @@
 package com.openbounty.config;
 
+import com.openbounty.security.IdempotencyFilter;
 import com.openbounty.security.JwtAccessDeniedHandler;
 import com.openbounty.security.JwtAuthenticationEntryPoint;
 import com.openbounty.security.JwtAuthenticationFilter;
@@ -38,6 +39,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
+    private final IdempotencyFilter idempotencyFilter;
     private final JwtAuthenticationEntryPoint jwtAuthEntryPoint;
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final UserDetailsService userDetailsService;
@@ -82,8 +84,8 @@ public class SecurityConfig {
                 "https://*.openbounty.dev"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"));
-        configuration.setExposedHeaders(List.of("Authorization"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "Idempotency-Key"));
+        configuration.setExposedHeaders(List.of("Authorization", "Idempotency-Key", "Idempotent-Replayed"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
@@ -127,7 +129,8 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(idempotencyFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
