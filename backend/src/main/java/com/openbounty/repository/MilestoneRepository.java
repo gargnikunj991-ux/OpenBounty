@@ -62,4 +62,13 @@ public interface MilestoneRepository extends JpaRepository<Milestone, Long> {
      * Count milestones in a proposal that do not match a given status.
      */
     long countByProposalIdAndStatusNot(Long proposalId, MilestoneStatus status);
+
+    /**
+     * Find submitted milestones that have been waiting for review past the specified inactivity threshold.
+     * Backed by index on status and submitted_at.
+     */
+    @Query("SELECT m FROM Milestone m WHERE m.status = :status AND m.submittedAt < :threshold")
+    List<Milestone> findByStatusAndSubmittedAtBefore(
+            @Param("status") MilestoneStatus status,
+            @Param("threshold") java.time.LocalDateTime threshold);
 }

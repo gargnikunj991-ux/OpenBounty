@@ -1,6 +1,7 @@
 package com.openbounty.controller;
 
 import com.openbounty.dto.response.common.PagedResponse;
+import com.openbounty.dto.response.ledger.AutoReleaseSummaryResponse;
 import com.openbounty.dto.response.ledger.BountyEscrowSummaryResponse;
 import com.openbounty.dto.response.ledger.LedgerTransactionResponse;
 import com.openbounty.dto.response.ledger.PlatformBalanceSheetResponse;
@@ -16,6 +17,7 @@ import com.openbounty.repository.LedgerTransactionRepository;
 import com.openbounty.repository.projection.AccountBalanceProjection;
 import com.openbounty.security.UserPrincipal;
 import com.openbounty.service.EscrowLedgerService;
+import com.openbounty.service.MilestoneInactivityAutoReleaseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -46,6 +49,7 @@ public class LedgerController {
     private final EscrowLedgerService escrowLedgerService;
     private final LedgerTransactionRepository transactionRepository;
     private final BountyRepository bountyRepository;
+    private final MilestoneInactivityAutoReleaseService autoReleaseService;
 
     @GetMapping("/balance-sheet")
     @PreAuthorize("hasRole('ADMIN')")
@@ -174,6 +178,16 @@ public class LedgerController {
                 "userId", currentUser.getId(),
                 "payableBalance", balance != null ? balance : BigDecimal.ZERO
         ));
+    }
+
+    @PostMapping("/escrow/auto-release-inactivity")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Trigger inactivity escrow auto-release sweep", description = "Scans and auto-releases milestones unreviewed past threshold days (Admin only).")
+    public ResponseEntity<AutoReleaseSummaryResponse> triggerInactivityAutoRelease(
+            @RequestParam(name = "days", defaultValue = "14") int days) {
+        log.info("Admin triggering manual escrow inactivity auto-release sweep (threshold: {} days)", days);
+        AutoReleaseSummaryResponse response = autoReleaseService.sweepAndAutoRelease(days);
+        return ResponseEntity.ok(response);
     }
 
     private BigDecimal getNetBalance(List<AccountBalanceProjection> projections, LedgerAccount account) {
