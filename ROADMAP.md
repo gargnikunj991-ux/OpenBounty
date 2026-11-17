@@ -186,18 +186,23 @@ This document outlines the master engineering roadmap to transform **OpenBounty*
 
 ---
 
-## Phase 11: Distributed Idempotency Engine & State Resiliency 🛡️
-* **Status**: Planned
-* **Goal**: Eliminate duplicate charges, prevent replay attacks, and handle client inactivity automatically.
+## Phase 11: Distributed Idempotency Engine & State Resiliency 🛡️ ✅
+* **Status**: Completed
+* **Goal**: Eliminate duplicate charges, prevent replay attacks, handle client inactivity automatically, and provide formal deliverable arbitration.
 * **Key Deliverables**:
-  1. `Idempotency-Key` HTTP Header Interceptor:
-     - Hashes request payloads (SHA-256) and caches execution status.
-     - Returns deterministic cached responses on retried requests.
-  2. 14-Day Inactivity Auto-Release Worker:
-     - Spring `@Scheduled` background worker: Automatically releases escrow to the developer if a deliverable remains unreviewed for 14 calendar days.
-  3. Dispute Protocol:
-     - `POST /api/milestones/{id}/dispute` freezing escrow and escalating to `ROLE_ADMIN` settlement.
-* **Engineering Concept**: Distributed idempotency, background job scheduling, defensive state machines.
+  1. **Phase 11A — Distributed Idempotency Engine & Replay Defense**:
+     - `Idempotency-Key` HTTP Header filter with SHA-256 payload digest caching and `REQUIRES_NEW` transactions.
+     - Deterministic cached response replay with `Idempotent-Replayed: true` header.
+     - Defense against concurrent execution races (409 Conflict) and payload reuse mismatches (422 Unprocessable).
+  2. **Phase 11B — 14-Day Inactivity Escrow Auto-Release Worker**:
+     - Spring `@Scheduled` background worker (`MilestoneAutoReleaseScheduler`) scanning for abandoned deliverables past 14 days.
+     - Automated escrow payout disbursement (85% developer payable, 15% platform take-rate), bounty completion trigger, and +20 reputation award.
+     - Operational administrative on-demand sweep endpoint: `POST /api/ledger/escrow/auto-release-inactivity`.
+  3. **Phase 11C — Milestone Dispute Protocol & Administrative Settlement**:
+     - Formal arbitration workflow (`POST /api/milestones/{id}/dispute`) freezing escrow into `DISPUTE_SUSPENSE` in the double-entry ledger.
+     - Administrative decree settlement (`POST /api/admin/disputes/{id}/resolve`) supporting client refund, developer payout, or 50/50 split with mathematical ledger invariants preserved.
+     - Full test suites verifying IDOR protection, state machine guards, and financial balance balance sheet equation.
+* **Engineering Concept**: Distributed idempotency, background job scheduling, defensive state machines, arbitration escrow suspense.
 
 ---
 

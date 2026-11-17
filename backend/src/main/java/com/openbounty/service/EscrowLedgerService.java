@@ -1,5 +1,6 @@
 package com.openbounty.service;
 
+import com.openbounty.enums.DisputeDecision;
 import com.openbounty.enums.EntryType;
 import com.openbounty.enums.LedgerAccount;
 import com.openbounty.enums.MilestoneStatus;
@@ -10,6 +11,7 @@ import com.openbounty.model.Bounty;
 import com.openbounty.model.LedgerEntry;
 import com.openbounty.model.LedgerTransaction;
 import com.openbounty.model.Milestone;
+import com.openbounty.model.MilestoneDispute;
 import com.openbounty.model.Proposal;
 import com.openbounty.repository.BountyRepository;
 import com.openbounty.repository.LedgerEntryRepository;
@@ -279,5 +281,206 @@ public class EscrowLedgerService {
     public LedgerTransaction getTransactionByReference(String reference) {
         return transactionRepository.findWithEntriesByTransactionReference(reference)
                 .orElseThrow(() -> new ResourceNotFoundException("LedgerTransaction", "transactionReference", reference));
+    }
+
+    /**
+     * Freezes milestone escrow funds into DISPUTE_SUSPENSE when an arbitration dispute is filed.
+     * DEBIT:  CLIENT_ESCROW_LOCKED (Relieving locked escrow liability)
+     * CREDIT: DISPUTE_SUSPENSE     (Holding funds in dispute suspense liability)
+     *
+     * Invariant: DEBIT == CREDIT
+     */
+    @Transactional
+    public LedgerTransaction freezeMilestoneInDispute(Milestone milestone, Long initiatorId, String reason) {
+        if (milestone == null) {
+            throw new BadRequestException("Milestone cannot be null when freezing dispute escrow");
+        }
+        Proposal proposal = milestone.getProposal();
+        if (proposal == null || proposal.getBounty() == null) {
+            throw new BadRequestException("Milestone must have valid proposal and bounty to freeze escrow");
+        }
+
+        Bounty bounty = proposal.getBounty();
+        long totalMilestones = milestoneRepository.countByProposalId(proposal.getId());
+        if (totalMilestones <= 0) totalMilestones = 1;
+
+        BigDecimal proposedTotal = proposal.getProposedAmount() != null
+                ? proposal.getProposedAmount()
+                : bounty.getRewardAmount();
+
+        if (proposedTotal == null || proposedTotal.compareTo(BigDecimal.ZERO) <= 0) {
+            proposedTotal = new BigDecimal("100.00");
+        }
+
+        BigDecimal remainingLocked = entryRepository.getLockedEscrowForBounty(bounty.getId());
+        if (remainingLocked == null || remainingLocked.compareTo(BigDecimal.ZERO) <= 0) {
+            lockBountyEscrow(bounty);
+            remainingLocked = entryRepository.getLockedEscrowForBounty(bounty.getId());
+        }
+
+        long unapprovedCount = milestoneRepository.countByProposalIdAndStatusNot(proposal.getId(), MilestoneStatus.APPROVED);
+        BigDecimal grossMilestoneAmount;
+        if (unapprovedCount <= 1 && remainingLocked != null && remainingLocked.compareTo(BigDecimal.ZERO) > 0) {
+            grossMilestoneAmount = remainingLocked;
+        } else {
+            grossMilestoneAmount = proposedTotal.divide(BigDecimal.valueOf(totalMilestones), 2, RoundingMode.HALF_UP);
+            if (remainingLocked != null && grossMilestoneAmount.compareTo(remainingLocked) > 0) {
+                grossMilestoneAmount = remainingLocked;
+            }
+        }
+
+        grossMilestoneAmount = grossMilestoneAmount.setScale(2, RoundingMode.HALF_UP);
+        String txnRef = "TXN-FREEZE-" + milestone.getId() + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+
+        LedgerTransaction txn = LedgerTransaction.builder()
+                .transactionReference(txnRef)
+                .transactionType(TransactionType.DISPUTE_FREEZE)
+                .description("Escrow frozen into dispute suspense for milestone #" + milestone.getId() +
+                        (reason != null ? " (" + reason + ")" : ""))
+                .bountyId(bounty.getId())
+                .milestoneId(milestone.getId())
+                .userId(initiatorId)
+                .build();
+
+        txn.addEntry(LedgerEntry.builder()
+                .account(LedgerAccount.CLIENT_ESCROW_LOCKED)
+                .entryType(EntryType.DEBIT)
+                .amount(grossMilestoneAmount)
+                .build());
+
+        txn.addEntry(LedgerEntry.builder()
+                .account(LedgerAccount.DISPUTE_SUSPENSE)
+                .entryType(EntryType.CREDIT)
+                .amount(grossMilestoneAmount)
+                .build());
+
+        balanceValidator.validate(txn);
+        LedgerTransaction savedTxn = transactionRepository.save(txn);
+        log.info("Frozen {} into DISPUTE_SUSPENSE for milestone ID {} [TxnRef: {}]", grossMilestoneAmount, milestone.getId(), txnRef);
+        return savedTxn;
+    }
+
+    /**
+     * Settles frozen dispute escrow according to the administrator's decision.
+     * Supports:
+     * - REFUND_CLIENT: DEBIT DISPUTE_SUSPENSE, CREDIT PLATFORM_CASH
+     * - DISBURSE_DEVELOPER: DEBIT DISPUTE_SUSPENSE, CREDIT DEVELOPER_PAYABLE (85%), CREDIT PLATFORM_FEE_REVENUE (15%)
+     * - SPLIT_50_50: 50% client refund, 50% developer payout with 85/15 take-rate split
+     */
+    @Transactional
+    public LedgerTransaction resolveDisputeSettlement(MilestoneDispute dispute, DisputeDecision decision, Long adminId, String notes) {
+        if (dispute == null) {
+            throw new BadRequestException("Dispute cannot be null for resolution");
+        }
+        if (decision == null) {
+            throw new BadRequestException("Decision is required for dispute resolution");
+        }
+
+        BigDecimal amount = dispute.getFrozenAmount();
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            amount = new BigDecimal("100.00");
+        }
+        amount = amount.setScale(2, RoundingMode.HALF_UP);
+
+        Bounty bounty = dispute.getBounty();
+        Milestone milestone = dispute.getMilestone();
+
+        Long devId = (bounty != null && bounty.getAssignedDeveloper() != null)
+                ? bounty.getAssignedDeveloper().getId()
+                : (milestone != null && milestone.getProposal() != null && milestone.getProposal().getDeveloper() != null
+                    ? milestone.getProposal().getDeveloper().getId()
+                    : null);
+        Long clientId = bounty != null && bounty.getClient() != null ? bounty.getClient().getId() : null;
+        Long beneficiaryUserId = (decision == DisputeDecision.REFUND_CLIENT) ? clientId : devId;
+        if (beneficiaryUserId == null) {
+            beneficiaryUserId = adminId;
+        }
+
+        String txnRef = "TXN-SETTLE-" + dispute.getId() + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+
+        LedgerTransaction txn = LedgerTransaction.builder()
+                .transactionReference(txnRef)
+                .transactionType(TransactionType.DISPUTE_RESOLUTION)
+                .description("Arbitration resolution for dispute #" + dispute.getId() + " [" + decision + "] " +
+                        (notes != null ? notes : ""))
+                .bountyId(bounty != null ? bounty.getId() : null)
+                .milestoneId(milestone != null ? milestone.getId() : null)
+                .userId(beneficiaryUserId)
+                .build();
+
+        if (decision == DisputeDecision.REFUND_CLIENT) {
+            // Full refund to client
+            txn.addEntry(LedgerEntry.builder()
+                    .account(LedgerAccount.DISPUTE_SUSPENSE)
+                    .entryType(EntryType.DEBIT)
+                    .amount(amount)
+                    .build());
+
+            txn.addEntry(LedgerEntry.builder()
+                    .account(LedgerAccount.PLATFORM_CASH)
+                    .entryType(EntryType.CREDIT)
+                    .amount(amount)
+                    .build());
+
+        } else if (decision == DisputeDecision.DISBURSE_DEVELOPER) {
+            // Full payout to developer
+            BigDecimal platformFee = amount.multiply(DEFAULT_PLATFORM_FEE_RATE).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal devNet = amount.subtract(platformFee);
+
+            txn.addEntry(LedgerEntry.builder()
+                    .account(LedgerAccount.DISPUTE_SUSPENSE)
+                    .entryType(EntryType.DEBIT)
+                    .amount(amount)
+                    .build());
+
+            txn.addEntry(LedgerEntry.builder()
+                    .account(LedgerAccount.DEVELOPER_PAYABLE)
+                    .entryType(EntryType.CREDIT)
+                    .amount(devNet)
+                    .build());
+
+            txn.addEntry(LedgerEntry.builder()
+                    .account(LedgerAccount.PLATFORM_FEE_REVENUE)
+                    .entryType(EntryType.CREDIT)
+                    .amount(platformFee)
+                    .build());
+
+        } else if (decision == DisputeDecision.SPLIT_50_50) {
+            // 50% refund, 50% developer payout
+            BigDecimal clientRefund = amount.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+            BigDecimal devGross = amount.subtract(clientRefund);
+            BigDecimal platformFee = devGross.multiply(DEFAULT_PLATFORM_FEE_RATE).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal devNet = devGross.subtract(platformFee);
+
+            txn.addEntry(LedgerEntry.builder()
+                    .account(LedgerAccount.DISPUTE_SUSPENSE)
+                    .entryType(EntryType.DEBIT)
+                    .amount(amount)
+                    .build());
+
+            txn.addEntry(LedgerEntry.builder()
+                    .account(LedgerAccount.PLATFORM_CASH)
+                    .entryType(EntryType.CREDIT)
+                    .amount(clientRefund)
+                    .build());
+
+            txn.addEntry(LedgerEntry.builder()
+                    .account(LedgerAccount.DEVELOPER_PAYABLE)
+                    .entryType(EntryType.CREDIT)
+                    .amount(devNet)
+                    .build());
+
+            txn.addEntry(LedgerEntry.builder()
+                    .account(LedgerAccount.PLATFORM_FEE_REVENUE)
+                    .entryType(EntryType.CREDIT)
+                    .amount(platformFee)
+                    .build());
+        }
+
+        balanceValidator.validate(txn);
+        LedgerTransaction savedTxn = transactionRepository.save(txn);
+        log.info("Arbitration settled for dispute ID {} [Decision: {}, Amount: {}, TxnRef: {}]",
+                dispute.getId(), decision, amount, txnRef);
+        return savedTxn;
     }
 }

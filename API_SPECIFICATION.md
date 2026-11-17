@@ -496,6 +496,101 @@ This document provides the exhaustive API reference and contract for the **OpenB
 
 ---
 
+### 4.6 File Milestone Dispute
+* **Endpoint:** `POST /api/milestones/{id}/dispute`
+* **Access:** Authenticated (Client owner or assigned Developer)
+* **Headers:** `Idempotency-Key` *(optional)*
+* **Side Effects:**
+  - Freezes milestone escrow funds into `DISPUTE_SUSPENSE` in the double-entry financial ledger (`TransactionType.DISPUTE_FREEZE`).
+  - Transitions milestone status to `DISPUTED`.
+  - Creates a pending arbitration case for platform administrators.
+
+#### Request Body
+```json
+{
+  "reason": "Deliverable code does not satisfy requirements or test coverage criteria.",
+  "evidenceUrl": "https://github.com/client/repo/issues/42"
+}
+```
+
+#### Response `201 Created`
+```json
+{
+  "id": 1,
+  "milestoneId": 301,
+  "bountyId": 101,
+  "bountyTitle": "High Concurrency Escrow Platform",
+  "initiatorId": 5,
+  "initiatorName": "Client Organization",
+  "reason": "Deliverable code does not satisfy requirements...",
+  "evidenceUrl": "https://github.com/client/repo/issues/42",
+  "status": "PENDING_REVIEW",
+  "decision": null,
+  "resolutionNotes": null,
+  "frozenAmount": 500.00,
+  "resolvedById": null,
+  "resolvedAt": null,
+  "createdAt": "2026-11-17T18:00:00.000Z"
+}
+```
+
+---
+
+### 4.7 Get Dispute by ID
+* **Endpoint:** `GET /api/disputes/{id}`
+* **Access:** Authenticated (Participants or `ROLE_ADMIN`)
+
+#### Response `200 OK`
+```json
+{
+  "id": 1,
+  "milestoneId": 301,
+  "bountyId": 101,
+  "bountyTitle": "High Concurrency Escrow Platform",
+  "initiatorId": 5,
+  "initiatorName": "Client Organization",
+  "status": "PENDING_REVIEW",
+  "frozenAmount": 500.00,
+  "createdAt": "2026-11-17T18:00:00.000Z"
+}
+```
+
+---
+
+### 4.8 Administrator Dispute Settlement
+* **Endpoint:** `POST /api/admin/disputes/{id}/resolve`
+* **Access:** `ROLE_ADMIN` only
+* **Side Effects:**
+  - Settle frozen escrow in double-entry ledger according to decision:
+    - `REFUND_CLIENT`: Moves funds from `DISPUTE_SUSPENSE` to `PLATFORM_CASH`.
+    - `DISBURSE_DEVELOPER`: Moves funds from `DISPUTE_SUSPENSE` to `DEVELOPER_PAYABLE` (85%) and `PLATFORM_FEE_REVENUE` (15%). Completes bounty if 100% approved.
+    - `SPLIT_50_50`: 50% refunded to client, 50% disbursed to developer (with 85/15 take-rate split).
+  - Updates dispute status to `RESOLVED_CLIENT_REFUND`, `RESOLVED_DEVELOPER_PAYOUT`, or `RESOLVED_SPLIT`.
+
+#### Request Body
+```json
+{
+  "decision": "SPLIT_50_50",
+  "resolutionNotes": "Both parties agreed to 50/50 mutual settlement following arbitration audit."
+}
+```
+
+#### Response `200 OK`
+```json
+{
+  "id": 1,
+  "milestoneId": 301,
+  "bountyId": 101,
+  "status": "RESOLVED_SPLIT",
+  "decision": "SPLIT_50_50",
+  "resolutionNotes": "Both parties agreed to 50/50 mutual settlement...",
+  "resolvedById": 99,
+  "resolvedAt": "2026-11-17T18:30:00.000Z"
+}
+```
+
+---
+
 ## 5. Reviews & Reputation Module (`/api/reviews`)
 
 ### 5.1 Submit a Review
