@@ -190,6 +190,12 @@ public class GlobalExceptionHandler {
                 "The resource is currently locked or undergoing concurrent modification. Please retry.", request);
     }
 
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public ResponseEntity<ErrorResponse> handleIdempotencyConflict(IdempotencyConflictException ex, HttpServletRequest request) {
+        log.warn("Idempotency conflict: {}", ex.getMessage());
+        return buildResponse(HttpStatus.CONFLICT, "idempotency-conflict", "Idempotency Conflict", ex.getMessage(), request);
+    }
+
     // =========================================================================
     // 410 GONE Handlers
     // =========================================================================
@@ -209,6 +215,22 @@ public class GlobalExceptionHandler {
         log.error("Payment processing error [TxId: {}, GatewayCode: {}]: {}",
                 ex.getTransactionId(), ex.getGatewayErrorCode(), ex.getMessage());
         return buildResponse(HttpStatus.PAYMENT_REQUIRED, "payment-processing-failed", "Payment Processing Failed", ex.getMessage(), request);
+    }
+
+    // =========================================================================
+    // 422 UNPROCESSABLE ENTITY Handlers
+    // =========================================================================
+
+    @ExceptionHandler(UnbalancedLedgerException.class)
+    public ResponseEntity<ErrorResponse> handleUnbalancedLedger(UnbalancedLedgerException ex, HttpServletRequest request) {
+        log.error("Financial invariant violation - Unbalanced ledger transaction: {}", ex.getMessage());
+        return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, "unbalanced-ledger-transaction", "Unbalanced Financial Transaction", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(IdempotencyPayloadMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleIdempotencyPayloadMismatch(IdempotencyPayloadMismatchException ex, HttpServletRequest request) {
+        log.warn("Idempotency payload mismatch: {}", ex.getMessage());
+        return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, "idempotency-payload-mismatch", "Idempotency Payload Mismatch", ex.getMessage(), request);
     }
 
     // =========================================================================

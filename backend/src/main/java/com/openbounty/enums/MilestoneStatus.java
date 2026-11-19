@@ -6,5 +6,6 @@ package com.openbounty.enums;
 public enum MilestoneStatus {
     PENDING,
     SUBMITTED,
-    APPROVED
+    APPROVED,
+    DISPUTED
 }

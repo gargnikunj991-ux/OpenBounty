@@ -496,6 +496,101 @@ This document provides the exhaustive API reference and contract for the **OpenB
 
 ---
 
+### 4.6 File Milestone Dispute
+* **Endpoint:** `POST /api/milestones/{id}/dispute`
+* **Access:** Authenticated (Client owner or assigned Developer)
+* **Headers:** `Idempotency-Key` *(optional)*
+* **Side Effects:**
+  - Freezes milestone escrow funds into `DISPUTE_SUSPENSE` in the double-entry financial ledger (`TransactionType.DISPUTE_FREEZE`).
+  - Transitions milestone status to `DISPUTED`.
+  - Creates a pending arbitration case for platform administrators.
+
+#### Request Body
+```json
+{
+  "reason": "Deliverable code does not satisfy requirements or test coverage criteria.",
+  "evidenceUrl": "https://github.com/client/repo/issues/42"
+}
+```
+
+#### Response `201 Created`
+```json
+{
+  "id": 1,
+  "milestoneId": 301,
+  "bountyId": 101,
+  "bountyTitle": "High Concurrency Escrow Platform",
+  "initiatorId": 5,
+  "initiatorName": "Client Organization",
+  "reason": "Deliverable code does not satisfy requirements...",
+  "evidenceUrl": "https://github.com/client/repo/issues/42",
+  "status": "PENDING_REVIEW",
+  "decision": null,
+  "resolutionNotes": null,
+  "frozenAmount": 500.00,
+  "resolvedById": null,
+  "resolvedAt": null,
+  "createdAt": "2026-11-17T18:00:00.000Z"
+}
+```
+
+---
+
+### 4.7 Get Dispute by ID
+* **Endpoint:** `GET /api/disputes/{id}`
+* **Access:** Authenticated (Participants or `ROLE_ADMIN`)
+
+#### Response `200 OK`
+```json
+{
+  "id": 1,
+  "milestoneId": 301,
+  "bountyId": 101,
+  "bountyTitle": "High Concurrency Escrow Platform",
+  "initiatorId": 5,
+  "initiatorName": "Client Organization",
+  "status": "PENDING_REVIEW",
+  "frozenAmount": 500.00,
+  "createdAt": "2026-11-17T18:00:00.000Z"
+}
+```
+
+---
+
+### 4.8 Administrator Dispute Settlement
+* **Endpoint:** `POST /api/admin/disputes/{id}/resolve`
+* **Access:** `ROLE_ADMIN` only
+* **Side Effects:**
+  - Settle frozen escrow in double-entry ledger according to decision:
+    - `REFUND_CLIENT`: Moves funds from `DISPUTE_SUSPENSE` to `PLATFORM_CASH`.
+    - `DISBURSE_DEVELOPER`: Moves funds from `DISPUTE_SUSPENSE` to `DEVELOPER_PAYABLE` (85%) and `PLATFORM_FEE_REVENUE` (15%). Completes bounty if 100% approved.
+    - `SPLIT_50_50`: 50% refunded to client, 50% disbursed to developer (with 85/15 take-rate split).
+  - Updates dispute status to `RESOLVED_CLIENT_REFUND`, `RESOLVED_DEVELOPER_PAYOUT`, or `RESOLVED_SPLIT`.
+
+#### Request Body
+```json
+{
+  "decision": "SPLIT_50_50",
+  "resolutionNotes": "Both parties agreed to 50/50 mutual settlement following arbitration audit."
+}
+```
+
+#### Response `200 OK`
+```json
+{
+  "id": 1,
+  "milestoneId": 301,
+  "bountyId": 101,
+  "status": "RESOLVED_SPLIT",
+  "decision": "SPLIT_50_50",
+  "resolutionNotes": "Both parties agreed to 50/50 mutual settlement...",
+  "resolvedById": 99,
+  "resolvedAt": "2026-11-17T18:30:00.000Z"
+}
+```
+
+---
+
 ## 5. Reviews & Reputation Module (`/api/reviews`)
 
 ### 5.1 Submit a Review
@@ -633,7 +728,103 @@ This document provides the exhaustive API reference and contract for the **OpenB
 
 ---
 
-## 7. Standardized Error Handling (RFC 7807 Problem Details)
+## 7. Financial Ledger & Escrow Audit Module (`/api/ledger`)
+
+### 7.1 Platform Balance Sheet Audit Report
+* **Endpoint:** `GET /api/ledger/balance-sheet`
+* **Access:** Restricted (`ROLE_ADMIN` only)
+* **Description:** Computes real-time aggregate debit and credit balances across standard chart-of-accounts (`PLATFORM_CASH`, `CLIENT_ESCROW_LOCKED`, `DEVELOPER_PAYABLE`, `PLATFORM_FEE_REVENUE`, `DISPUTE_SUSPENSE`) and validates the GAAP balance sheet equation.
+
+#### Response `200 OK`
+```json
+{
+  "platformCash": 50000.00,
+  "clientEscrowLocked": 32000.00,
+  "developerPayable": 15300.00,
+  "platformFeeRevenue": 2700.00,
+  "disputeSuspense": 0.00,
+  "balanced": true,
+  "generatedAt": "2026-11-14T20:00:00.000Z"
+}
+```
+
+---
+
+### 7.2 Paginated Journal Transactions Audit Trail
+* **Endpoint:** `GET /api/ledger/transactions?page=0&size=20`
+* **Access:** Restricted (`ROLE_ADMIN` only)
+* **Description:** Retrieves paginated immutable double-entry ledger transactions with nested debits and credits.
+
+#### Response `200 OK`
+```json
+{
+  "content": [
+    {
+      "id": 101,
+      "transactionReference": "TXN-LOCK-12-87D7C974",
+      "transactionType": "BOUNTY_ESCROW_LOCK",
+      "description": "Escrow locked for bounty #12 ('Build Spring Security Module')",
+      "bountyId": 12,
+      "milestoneId": null,
+      "userId": 4,
+      "totalDebit": 2000.00,
+      "totalCredit": 2000.00,
+      "balanced": true,
+      "createdAt": "2026-11-14T19:30:00.000Z",
+      "entries": [
+        { "id": 201, "account": "PLATFORM_CASH", "entryType": "DEBIT", "amount": 2000.00 },
+        { "id": 202, "account": "CLIENT_ESCROW_LOCKED", "entryType": "CREDIT", "amount": 2000.00 }
+      ]
+    }
+  ],
+  "pageNumber": 0,
+  "pageSize": 20,
+  "totalElements": 1,
+  "totalPages": 1,
+  "last": true,
+  "first": true,
+  "empty": false
+}
+```
+
+---
+
+### 7.3 Bounty Escrow Summary
+* **Endpoint:** `GET /api/ledger/escrow/bounties/{bountyId}`
+* **Access:** Authenticated (`ROLE_CLIENT` owner, assigned `ROLE_DEVELOPER`, or `ROLE_ADMIN`)
+* **Description:** Returns the locked escrow balance, disbursed earnings, refunds, and related journal transactions for a specific bounty. Protected by IDOR access guards.
+
+#### Response `200 OK`
+```json
+{
+  "bountyId": 12,
+  "bountyTitle": "Build Spring Security Module",
+  "totalRewardAmount": 2000.00,
+  "currentLockedEscrow": 1000.00,
+  "totalDisbursed": 1000.00,
+  "totalRefunded": 0.00,
+  "transactions": [ ... ]
+}
+```
+
+---
+
+### 7.4 Developer Accumulated Payable Balance
+* **Endpoint:** `GET /api/ledger/payable/me`
+* **Access:** Restricted (`ROLE_DEVELOPER` only)
+* **Description:** Returns the total accumulated earnings held in `DEVELOPER_PAYABLE` awaiting payout withdrawal for the authenticated developer.
+
+#### Response `200 OK`
+```json
+{
+  "userId": 5,
+  "payableBalance": 1700.00
+}
+```
+
+---
+
+## 8. Standardized Error Handling (RFC 7807 Problem Details)
 
 All error responses return a standardized JSON structure:
 

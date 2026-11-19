@@ -158,36 +158,51 @@ This document outlines the master engineering roadmap to transform **OpenBounty*
 
 ---
 
-## Phase 10: In-House Escrow & Double-Entry Financial Ledger 📒
-* **Status**: Planned (Core Backend Engineering Signal)
+## Phase 10: In-House Escrow & Double-Entry Financial Ledger ✅
+* **Status**: Completed
 * **Goal**: Guarantee zero financial reconciliation errors, eliminate balance drift, and maintain GAAP-compliant audit trails.
 * **Key Deliverables**:
-  1. Immutable `ledger_entries` table recording balanced Debits and Credits.
-  2. Standard Ledger Accounts:
-     - `PLATFORM_CASH`
-     - `CLIENT_ESCROW_LOCKED`
-     - `DEVELOPER_PAYABLE`
-     - `PLATFORM_FEE_REVENUE`
-  3. Invariant Enforcer: Strict validation verifying $\sum \text{Debit} \equiv \sum \text{Credit}$ on every financial journal entry.
-  4. Automated Escrow Lifecycle:
-     - Locking funds on bounty publication (`CLIENT_ESCROW_LOCKED`).
-     - Splitting funds upon milestone approval (Developer disbursement + Platform take-rate).
-* **Engineering Concept**: Double-entry bookkeeping, ACID financial consistency, transactional invariants.
+  1. Immutable `ledger_transactions` and `ledger_entries` tables with strict foreign keys and index optimization.
+  2. Standard Chart-of-Accounts:
+     - `PLATFORM_CASH` (Asset: Total liquid client funds held on platform)
+     - `CLIENT_ESCROW_LOCKED` (Liability: Client funds locked in escrow pending deliverables)
+     - `DEVELOPER_PAYABLE` (Liability: Approved milestone earnings payable to developers)
+     - `PLATFORM_FEE_REVENUE` (Revenue: Platform take-rate commission recognized on completion)
+     - `DISPUTE_SUSPENSE` (Liability/Suspense: Funds frozen under active arbitration)
+  3. Invariant Enforcer (`LedgerBalanceValidator`):
+     - Strict GAAP validation verifying $\sum \text{Debit} \equiv \sum \text{Credit}$ prior to persistence with `UnbalancedLedgerException` (RFC 7807 422).
+  4. Automated Escrow Lifecycle (`EscrowLedgerService`):
+     - Automated escrow lock on bounty creation (`CLIENT_ESCROW_LOCKED`).
+     - Automated escrow refund on cancellation (`BOUNTY_ESCROW_REFUND`).
+     - Automated milestone payout release with mathematical take-rate split (`DEVELOPER_PAYABLE` 85%, `PLATFORM_FEE_REVENUE` 15%).
+  5. Audit & Escrow REST APIs (`LedgerController`):
+     - `GET /api/ledger/balance-sheet` (Platform-wide GAAP balance sheet audit, Admin only).
+     - `GET /api/ledger/transactions` (Paginated transaction audit trail, Admin only).
+     - `GET /api/ledger/escrow/bounties/{id}` (Bounty escrow summary, Owner/Assigned/Admin with IDOR defense).
+     - `GET /api/ledger/payable/me` (Developer payable balance inquiry).
+  6. Comprehensive Test Suite:
+     - `LedgerBalanceValidatorTest`, `LedgerRepositoryTest`, `EscrowLedgerServiceTest`, and `LedgerControllerTest` covering multithreaded concurrency.
+* **Engineering Concept**: Double-entry bookkeeping, ACID financial consistency, transactional invariants, GAAP balance sheet equation.
 
 ---
 
-## Phase 11: Distributed Idempotency Engine & State Resiliency 🛡️
-* **Status**: Planned
-* **Goal**: Eliminate duplicate charges, prevent replay attacks, and handle client inactivity automatically.
+## Phase 11: Distributed Idempotency Engine & State Resiliency 🛡️ ✅
+* **Status**: Completed
+* **Goal**: Eliminate duplicate charges, prevent replay attacks, handle client inactivity automatically, and provide formal deliverable arbitration.
 * **Key Deliverables**:
-  1. `Idempotency-Key` HTTP Header Interceptor:
-     - Hashes request payloads (SHA-256) and caches execution status.
-     - Returns deterministic cached responses on retried requests.
-  2. 14-Day Inactivity Auto-Release Worker:
-     - Spring `@Scheduled` background worker: Automatically releases escrow to the developer if a deliverable remains unreviewed for 14 calendar days.
-  3. Dispute Protocol:
-     - `POST /api/milestones/{id}/dispute` freezing escrow and escalating to `ROLE_ADMIN` settlement.
-* **Engineering Concept**: Distributed idempotency, background job scheduling, defensive state machines.
+  1. **Phase 11A — Distributed Idempotency Engine & Replay Defense**:
+     - `Idempotency-Key` HTTP Header filter with SHA-256 payload digest caching and `REQUIRES_NEW` transactions.
+     - Deterministic cached response replay with `Idempotent-Replayed: true` header.
+     - Defense against concurrent execution races (409 Conflict) and payload reuse mismatches (422 Unprocessable).
+  2. **Phase 11B — 14-Day Inactivity Escrow Auto-Release Worker**:
+     - Spring `@Scheduled` background worker (`MilestoneAutoReleaseScheduler`) scanning for abandoned deliverables past 14 days.
+     - Automated escrow payout disbursement (85% developer payable, 15% platform take-rate), bounty completion trigger, and +20 reputation award.
+     - Operational administrative on-demand sweep endpoint: `POST /api/ledger/escrow/auto-release-inactivity`.
+  3. **Phase 11C — Milestone Dispute Protocol & Administrative Settlement**:
+     - Formal arbitration workflow (`POST /api/milestones/{id}/dispute`) freezing escrow into `DISPUTE_SUSPENSE` in the double-entry ledger.
+     - Administrative decree settlement (`POST /api/admin/disputes/{id}/resolve`) supporting client refund, developer payout, or 50/50 split with mathematical ledger invariants preserved.
+     - Full test suites verifying IDOR protection, state machine guards, and financial balance balance sheet equation.
+* **Engineering Concept**: Distributed idempotency, background job scheduling, defensive state machines, arbitration escrow suspense.
 
 ---
 

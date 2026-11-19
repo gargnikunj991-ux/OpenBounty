@@ -287,3 +287,44 @@ CREATE INDEX idx_refresh_tokens_expiry ON refresh_tokens(expiry_date);
 | | `expiry_date` | `TIMESTAMP` | `NOT NULL` | Token expiration timestamp (default 24 hours) |
 | | `revoked` | `BOOLEAN` | `NOT NULL`, `DEFAULT FALSE` | Revocation status flag for reuse detection |
 | | `created_at` | `TIMESTAMP` | `NOT NULL` | Creation timestamp |
+| **`ledger_transactions`** | `id` | `BIGSERIAL` | `PK`, Auto-increment | Unique financial journal transaction identifier |
+| | `transaction_reference` | `VARCHAR(64)` | `NOT NULL`, `UNIQUE` | Unique human-readable transaction reference (`TXN-...`) |
+| | `transaction_type` | `VARCHAR(40)` | `NOT NULL` | Operation (`BOUNTY_ESCROW_LOCK`, `BOUNTY_ESCROW_REFUND`, etc.) |
+| | `description` | `VARCHAR(255)` | | Human-readable audit narrative |
+| | `bounty_id` | `BIGINT` | `INDEXED` | Optional referenced bounty identifier |
+| | `milestone_id` | `BIGINT` | `INDEXED` | Optional referenced milestone identifier |
+| | `user_id` | `BIGINT` | | Optional associated user identifier (client/developer) |
+| | `created_at` | `TIMESTAMP` | `NOT NULL` | Immutable journal entry creation timestamp |
+| **`ledger_entries`** | `id` | `BIGSERIAL` | `PK`, Auto-increment | Unique debit/credit entry identifier |
+| | `transaction_id` | `BIGINT` | `FK -> ledger_transactions(id)`, `NOT NULL` | Parent journal transaction |
+| | `account` | `VARCHAR(40)` | `NOT NULL`, `INDEXED` | Chart-of-accounts (`PLATFORM_CASH`, `CLIENT_ESCROW_LOCKED`, etc.) |
+| | `entry_type` | `VARCHAR(10)` | `NOT NULL` | Direction (`DEBIT` or `CREDIT`) |
+| | `amount` | `NUMERIC(15,2)`| `NOT NULL`, `> 0` | Monetary amount |
+| | `created_at` | `TIMESTAMP` | `NOT NULL` | Immutable entry creation timestamp |
+| **`idempotency_keys`** | `id` | `BIGSERIAL` | `PK`, Auto-increment | Unique idempotency record identifier |
+| | `idempotency_key` | `VARCHAR(128)` | `NOT NULL`, `UNIQUE` | Client-provided idempotency header token |
+| | `request_hash` | `VARCHAR(64)` | `NOT NULL` | SHA-256 digest of request payload |
+| | `request_path` | `VARCHAR(255)` | `NOT NULL` | HTTP request target endpoint |
+| | `http_method` | `VARCHAR(16)` | `NOT NULL` | Mutating HTTP method (`POST`, `PUT`, `PATCH`, `DELETE`) |
+| | `user_id` | `BIGINT` | | Optional authenticated caller user ID |
+| | `status` | `VARCHAR(32)` | `NOT NULL` | Execution state (`PROCESSING`, `COMPLETED`, `FAILED`) |
+| | `response_status`| `INT` | | Cached HTTP status code (e.g. 200, 201) |
+| | `response_body` | `TEXT` | | Cached response JSON payload |
+| | `response_content_type` | `VARCHAR(100)` | | Content type of cached response |
+| | `created_at` | `TIMESTAMP` | `NOT NULL` | Record initiation timestamp |
+| | `updated_at` | `TIMESTAMP` | `NOT NULL` | Record completion timestamp |
+| | `expires_at` | `TIMESTAMP` | `NOT NULL`, `INDEXED` | TTL expiration timestamp (default 24 hours) |
+| **`milestone_disputes`** | `id` | `BIGSERIAL` | `PK`, Auto-increment | Unique arbitration dispute identifier |
+| | `milestone_id` | `BIGINT` | `FK -> milestones(id)`, `NOT NULL`, `INDEXED` | Associated disputed milestone |
+| | `bounty_id` | `BIGINT` | `FK -> bounties(id)`, `NOT NULL`, `INDEXED` | Associated challenge |
+| | `initiator_id` | `BIGINT` | `FK -> users(id)`, `NOT NULL` | User raising the dispute (client or developer) |
+| | `reason` | `VARCHAR(2000)`| `NOT NULL` | Factual grounds for arbitration |
+| | `evidenceUrl` | `VARCHAR(500)` | | Link to logs, screenshots, or PR discussions |
+| | `status` | `VARCHAR(40)` | `NOT NULL`, `INDEXED` | State (`PENDING_REVIEW`, `RESOLVED_CLIENT_REFUND`, etc.) |
+| | `decision` | `VARCHAR(40)` | | Decree (`REFUND_CLIENT`, `DISBURSE_DEVELOPER`, `SPLIT_50_50`) |
+| | `resolution_notes` | `VARCHAR(2000)` | | Administrator arbitration audit notes |
+| | `frozen_amount`| `NUMERIC(12,2)`| | Escrow amount frozen into `DISPUTE_SUSPENSE` |
+| | `resolved_by_id` | `BIGINT` | `FK -> users(id)` | Administrator resolving dispute |
+| | `resolved_at` | `TIMESTAMP` | | Resolution timestamp |
+| | `created_at` | `TIMESTAMP` | `NOT NULL` | Dispute creation timestamp |
+| | `updated_at` | `TIMESTAMP` | `NOT NULL` | Record update timestamp |
